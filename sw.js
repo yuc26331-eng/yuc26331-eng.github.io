@@ -1,5 +1,4 @@
-// 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
-const VERSION = 'qingxing-v3';
+﻿// 杞昏绂荤嚎缂撳瓨锛氶缂撳瓨搴旂敤澶栧３涓庡叏閮ㄩ潤鎬佽祫婧愶紝绉佷汉鏁版嵁涓嶈繘鍏ョ紦瀛橈紙鏁版嵁淇濆瓨鍦ㄦ湰鏈哄瓨鍌ㄤ腑锛夈€?const VERSION = 'qingxing-v4';
 const CORE = [
   '/',
   '/index.html',
@@ -19,7 +18,7 @@ async function precacheApp(cache) {
   try {
     await cache.addAll(CORE);
   } catch {
-    // 单个资源失败不阻塞安装，剩余资源继续
+    // 鍗曚釜璧勬簮澶辫触涓嶉樆濉炲畨瑁咃紝鍓╀綑璧勬簮缁х画
   }
   try {
     const response = await fetch('/index.html', { cache: 'no-cache' });
@@ -30,13 +29,12 @@ async function precacheApp(cache) {
         try {
           await cache.addAll(urls);
         } catch {
-          // 个别资源失败可接受，运行期缓存会补上
+          // 涓埆璧勬簮澶辫触鍙帴鍙楋紝杩愯鏈熺紦瀛樹細琛ヤ笂
         }
       }
     }
   } catch {
-    // 离线安装时跳过
-  }
+    // 绂荤嚎瀹夎鏃惰烦杩?  }
 }
 
 self.addEventListener('install', (event) => {
@@ -84,7 +82,7 @@ self.addEventListener('fetch', (event) => {
           if (cached) return cached;
           const offline = await caches.match('/offline.html');
           if (offline) return offline;
-          return new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><h1>暂时没有网络</h1><p>恢复网络后请重新打开。</p></html>', {
+          return new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><h1>鏆傛椂娌℃湁缃戠粶</h1><p>鎭㈠缃戠粶鍚庤閲嶆柊鎵撳紑銆?/p></html>', {
             status: 200,
             headers: { 'Content-Type': 'text/html;charset=utf-8' },
           });
