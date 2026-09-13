@@ -1,1 +1,1 @@
-{"version":"1.0.1","build":"416fb8f","sw":"qingxing-v18","updateTime":"2026-09-13T13:19:52.032Z","changelog":"加入真正的 iOS App（Capacitor）：网页资源内置、飞行模式可用、原生状态栏/启动屏/键盘；更新按钮分「网页版立即更新」与「App 前往 TestFlight/安装页更新」。"}
+{"version":"1.0.1","build":"acbf5e8","sw":"qingxing-v19","updateTime":"2026-09-13T13:51:18.117Z","changelog":"软件更新中心：检查新版 IPA、显示更新日志、App 内分块下载（进度/取消/重试）、SHA-256 校验、分享到手机签名工具覆盖安装；CI 自动发布可重新签名的 IPA 到公开下载仓库。"}
