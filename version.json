@@ -1,1 +1,1 @@
-{"version":"1.0.3","build":"86ea962","sw":"qingxing-v20","updateTime":"2026-09-13T14:20:44.925Z","changelog":"改为完全无签名的标准 IPA（移除 ad-hoc 签名残留），可由 SideStore / AltStore 直接重新签名覆盖安装；CI 增加 `.app` 与 IPA 结构强校验（Info.plist、可执行文件、Frameworks、Capacitor 资源、无签名残留）。"}
+{"version":"1.0.4","build":"fa7e6c5","sw":"qingxing-v21","updateTime":"2026-09-13T15:25:14.978Z","changelog":"体验优化：首屏以「无需登录，在本机创建旅行」为主入口并说明两种模式的数据位置；行程页新增订单/费用/资料/行李直达入口（订单与钱包按行程关联）；同步状态明确显示「已保存到本机／等待同步／已同步」；离线提示页与应用说明统一；首页示例改为简短纯虚构内容。"}
