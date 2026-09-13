@@ -1,14 +1,16 @@
 {
-  "version": "1.3.1",
-  "build": 35,
+  "version": "1.3.2",
+  "build": 36,
   "date": "2026-09-13",
   "changelog": [
-    "v1.3.1：缓存版本升级，手机端可自动更新到第二轮视觉细化"
+    "应用图标更换为用户提供的原图（仅缩放/居中裁切，无透明无圆角）",
+    "更新 iOS AppIcon、PWA 192/512/apple-touch-icon",
+    "缓存版本 v26"
   ],
-  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.3.1.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.3.1-b35/Qingxing-v1.3.1.ipa",
-  "size": 13242676,
-  "fileSize": 13242676,
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.3.2.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.3.2-b36/Qingxing-v1.3.2.ipa",
+  "size": 16454202,
+  "fileSize": 16454202,
   "releaseDate": "2026-09-13",
-  "sha256": "933e5559a21582547ce7cc8686f982deaa1203f39e12827c00d42deb1e54ec76"
+  "sha256": "883c89876a022ed742e510e5ddc42f788ee76dcdedede58fcef688642d0393a6"
 }
