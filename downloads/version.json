@@ -1,15 +1,14 @@
 {
   "version": "1.4.2",
-  "build": 41,
+  "build": 42,
   "date": "2026-09-13",
   "changelog": [
-    "部署前重新构建 v1.4.2（修正被测试污染的构建产物）",
-    "忽略 firebase 调试日志"
+    "线上验收测试完善（等待同步初始化与 SW 就绪）"
   ],
   "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.4.2.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.2-b41/Qingxing-v1.4.2.ipa",
-  "size": 16672151,
-  "fileSize": 16672151,
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.2-b42/Qingxing-v1.4.2.ipa",
+  "size": 16672168,
+  "fileSize": 16672168,
   "releaseDate": "2026-09-13",
-  "sha256": "3f03dfc7989d0dcbea07c40e75facd5aae8bc3eb0d0c0cc55376b0fd03bca6b2"
+  "sha256": "dc10c72213ef4853120bb30e56890b3ba89f8f5313a21410856084643e3aa25f"
 }
