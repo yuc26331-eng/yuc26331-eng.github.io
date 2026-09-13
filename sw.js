@@ -1,8 +1,10 @@
 // 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
-const VERSION = 'qingxing-v12';
+const VERSION = 'qingxing-v13';
 const CORE = [
   '/',
   '/index.html',
+  '/tools/',
+  '/tools/index.html',
   '/compat.js',
   '/offline.html',
   '/manifest.webmanifest',
@@ -15,28 +17,32 @@ const CORE = [
   '/covers/kyoto.jpg',
 ];
 
+async function precachePage(cache, pagePath) {
+  try {
+    const response = await fetch(pagePath, { cache: 'no-cache' });
+    if (!response.ok) return;
+    const html = await response.text();
+    const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
+    if (urls.length) {
+      try {
+        await cache.addAll(urls);
+      } catch {
+        // 个别资源失败可接受，运行期缓存会补上
+      }
+    }
+  } catch {
+    // 离线安装时跳过
+  }
+}
+
 async function precacheApp(cache) {
   try {
     await cache.addAll(CORE);
   } catch {
     // 单个资源失败不阻塞安装，剩余资源继续
   }
-  try {
-    const response = await fetch('/index.html', { cache: 'no-cache' });
-    if (response.ok) {
-      const html = await response.text();
-      const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
-      if (urls.length) {
-        try {
-          await cache.addAll(urls);
-        } catch {
-          // 个别资源失败可接受，运行期缓存会补上
-        }
-      }
-    }
-  } catch {
-    // 离线安装时跳过
-  }
+  await precachePage(cache, '/index.html');
+  await precachePage(cache, '/tools/index.html');
 }
 
 self.addEventListener('install', (event) => {
@@ -68,6 +74,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
+  if (url.pathname === '/version.json') return; // 更新检查必须走网络
 
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -75,13 +82,16 @@ self.addEventListener('fetch', (event) => {
         .then((response) => {
           if (response && response.ok) {
             const copy = response.clone();
-            caches.open(VERSION).then((cache) => cache.put('/index.html', copy)).catch(() => {});
+            const key = url.pathname.startsWith('/tools') ? '/tools/index.html' : '/index.html';
+            caches.open(VERSION).then((cache) => cache.put(key, copy)).catch(() => {});
           }
           return response;
         })
         .catch(async () => {
-          const cached = (await caches.match('/index.html')) || (await caches.match('/'));
-          if (cached) return cached;
+          const exact = await caches.match(request, { ignoreSearch: true });
+          if (exact) return exact;
+          const page = (await caches.match('/index.html')) || (await caches.match('/'));
+          if (page) return page;
           const offline = await caches.match('/offline.html');
           if (offline) return offline;
           return new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><h1>暂时没有网络</h1><p>恢复网络后请重新打开。</p></html>', {
