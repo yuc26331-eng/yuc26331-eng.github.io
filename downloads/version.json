@@ -1,14 +1,14 @@
 {
   "version": "1.4.1",
-  "build": 38,
+  "build": 39,
   "date": "2026-09-13",
   "changelog": [
-    "启用共享旅行空间云端：Firebase(qingxing-travel) 配置接入构建与 CI，v1.4.1"
+    "新增线上真实云端双端同步检查脚本"
   ],
   "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.4.1.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.1-b38/Qingxing-v1.4.1.ipa",
-  "size": 16671775,
-  "fileSize": 16671775,
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.1-b39/Qingxing-v1.4.1.ipa",
+  "size": 16671746,
+  "fileSize": 16671746,
   "releaseDate": "2026-09-13",
-  "sha256": "eeb7d38be55454a5321dc13a9a3524300969737d0bff8e21f71583be7be75b12"
+  "sha256": "7410b0d3f34e84ad6afd7138e60fb2acac3e401e313bb807095cdf75f298662b"
 }
