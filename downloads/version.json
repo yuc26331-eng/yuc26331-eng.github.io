@@ -1,15 +1,15 @@
 {
-  "version": "1.2.0",
-  "build": 31,
+  "version": "1.3.0",
+  "build": 32,
   "date": "2026-09-13",
   "changelog": [
-    "一键旅行翻译：首页独立入口、/translator 页面（50句三语/分类/搜索/大字/朗读）、自定义句子与分类 IndexedDB 持久化、离线缓存",
-    "v1.2.0"
+    "视觉优化 v1.3.0：统一设计规范、首页层级与紧凑度、线性图标替换 emoji、44px 触控与轻动效",
+    "功能不变"
   ],
-  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.2.0.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.2.0-b31/Qingxing-v1.2.0.ipa",
-  "size": 13240189,
-  "fileSize": 13240189,
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.3.0.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.3.0-b32/Qingxing-v1.3.0.ipa",
+  "size": 13242655,
+  "fileSize": 13242655,
   "releaseDate": "2026-09-13",
-  "sha256": "ed4301cc210bbc81931f0b9163a700ba8152c91fe7da34ddea9de07c43b1f2b3"
+  "sha256": "884b515a0d0e5b94b01e76135725aaa1066d942930f78a7271ec28d246815659"
 }
