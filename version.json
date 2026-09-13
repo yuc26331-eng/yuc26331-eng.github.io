@@ -1,1 +1,1 @@
-{"version":"qingxing-v16","build":"09353ce","builtAt":"2026-09-13T11:29:54.109Z"}
+{"version":"1.0.0","build":"cba7ba1","sw":"qingxing-v17","updateTime":"2026-09-13T12:33:25.188Z","changelog":"推送代码到 GitHub 后，手机安装的 PWA 无需连接电脑即可检查并更新到最新版；更新只替换代码与缓存，本机数据保留。"}
