@@ -1,1 +1,1 @@
-{"version":"1.0.0","build":"cba7ba1","sw":"qingxing-v17","updateTime":"2026-09-13T12:33:25.188Z","changelog":"推送代码到 GitHub 后，手机安装的 PWA 无需连接电脑即可检查并更新到最新版；更新只替换代码与缓存，本机数据保留。"}
+{"version":"1.0.1","build":"7e91071","sw":"qingxing-v18","updateTime":"2026-09-13T13:17:39.215Z","changelog":"加入真正的 iOS App（Capacitor）：网页资源内置、飞行模式可用、原生状态栏/启动屏/键盘；更新按钮分「网页版立即更新」与「App 前往 TestFlight/安装页更新」。"}
