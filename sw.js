@@ -1,5 +1,5 @@
 // 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
-const VERSION = 'qingxing-v9';
+const VERSION = 'qingxing-v10';
 const CORE = [
   '/',
   '/index.html',
