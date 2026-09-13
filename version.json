@@ -1,1 +1,1 @@
-{"version":"1.0.1","build":"acbf5e8","sw":"qingxing-v19","updateTime":"2026-09-13T13:51:18.117Z","changelog":"软件更新中心：检查新版 IPA、显示更新日志、App 内分块下载（进度/取消/重试）、SHA-256 校验、分享到手机签名工具覆盖安装；CI 自动发布可重新签名的 IPA 到公开下载仓库。"}
+{"version":"1.0.3","build":"86ea962","sw":"qingxing-v20","updateTime":"2026-09-13T14:20:44.925Z","changelog":"改为完全无签名的标准 IPA（移除 ad-hoc 签名残留），可由 SideStore / AltStore 直接重新签名覆盖安装；CI 增加 `.app` 与 IPA 结构强校验（Info.plist、可执行文件、Frameworks、Capacitor 资源、无签名残留）。"}
