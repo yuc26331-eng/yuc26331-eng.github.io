@@ -1,10 +1,12 @@
 // 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
-const VERSION = 'qingxing-v22';
+const VERSION = 'qingxing-v23';
 const CORE = [
   '/',
   '/index.html',
   '/tools/',
   '/tools/index.html',
+  '/translator/',
+  '/translator/index.html',
   '/compat.js',
   '/offline.html',
   '/manifest.webmanifest',
@@ -43,6 +45,7 @@ async function precacheApp(cache) {
   }
   await precachePage(cache, '/index.html');
   await precachePage(cache, '/tools/index.html');
+  await precachePage(cache, '/translator/index.html');
 }
 
 self.addEventListener('install', (event) => {
