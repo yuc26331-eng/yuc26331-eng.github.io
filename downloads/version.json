@@ -1,16 +1,15 @@
 {
   "version": "1.4.2",
-  "build": 40,
+  "build": 41,
   "date": "2026-09-13",
   "changelog": [
-    "修复跨设备同步根因：统一固定主空间 main-trip（不再每设备随机空间），邀请空间显式标记",
-    "本地环境默认不连云端",
-    "v1.4.2"
+    "部署前重新构建 v1.4.2（修正被测试污染的构建产物）",
+    "忽略 firebase 调试日志"
   ],
   "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.4.2.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.2-b40/Qingxing-v1.4.2.ipa",
-  "size": 16672073,
-  "fileSize": 16672073,
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.2-b41/Qingxing-v1.4.2.ipa",
+  "size": 16672151,
+  "fileSize": 16672151,
   "releaseDate": "2026-09-13",
-  "sha256": "6826d87e7b712a64abca444908febe2112a98e65e816510c62c66a02db3e0ae6"
+  "sha256": "3f03dfc7989d0dcbea07c40e75facd5aae8bc3eb0d0c0cc55376b0fd03bca6b2"
 }
