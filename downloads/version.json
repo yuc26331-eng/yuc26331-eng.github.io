@@ -1,14 +1,14 @@
 {
-  "version": "1.4.0",
-  "build": 37,
+  "version": "1.4.1",
+  "build": 38,
   "date": "2026-09-13",
   "changelog": [
-    "共享旅行空间：Firestore 跨设备实时同步（匿名登录、字段级合并、离线队列、迁移备份保护、安全规则），v1.4.0"
+    "启用共享旅行空间云端：Firebase(qingxing-travel) 配置接入构建与 CI，v1.4.1"
   ],
-  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.4.0.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.0-b37/Qingxing-v1.4.0.ipa",
-  "size": 16672096,
-  "fileSize": 16672096,
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.4.1.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.1-b38/Qingxing-v1.4.1.ipa",
+  "size": 16671775,
+  "fileSize": 16671775,
   "releaseDate": "2026-09-13",
-  "sha256": "7341fcaa3cf913d273b2f17a0ddcddf5119fcf5457ca9e34f66cbb9cdd1060f5"
+  "sha256": "eeb7d38be55454a5321dc13a9a3524300969737d0bff8e21f71583be7be75b12"
 }
