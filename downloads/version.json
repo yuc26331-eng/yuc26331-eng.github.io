@@ -1,14 +1,19 @@
 {
-  "version": "1.0.3",
-  "build": 28,
+  "version": "1.0.4",
+  "build": 29,
   "date": "2026-09-13",
   "changelog": [
-    "v1.0.3 unsigned IPA for sideload resign, CI structure validation"
+    "体验优化第一轮：首屏本机入口优先（模式持久化+存储说明）",
+    "行程页订单/费用/资料/行李直达（订单按行程筛选）",
+    "同步状态文案统一",
+    "离线页改写",
+    "示例改为简短虚构",
+    "修复 today-smoke 时区缺陷"
   ],
-  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.0.3.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.0.3-b28/Qingxing-v1.0.3.ipa",
-  "size": 4119779,
-  "fileSize": 4119779,
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.0.4.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.0.4-b29/Qingxing-v1.0.4.ipa",
+  "size": 4113581,
+  "fileSize": 4113581,
   "releaseDate": "2026-09-13",
-  "sha256": "fbb9e60c04bc51acd8469de6e79dbbae00389c22236e19a6ba1417f939506c28"
+  "sha256": "f8e4ecbf6fd81618e02679e7396cb2850267a18d0d1a5d2fd8b171cc977505f0"
 }
