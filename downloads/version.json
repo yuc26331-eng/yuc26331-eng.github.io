@@ -1,14 +1,15 @@
 {
-  "version": "1.4.2",
-  "build": 42,
-  "date": "2026-09-13",
+  "version": "1.4.3",
+  "build": 43,
+  "date": "2026-09-14",
   "changelog": [
-    "线上验收测试完善（等待同步初始化与 SW 就绪）"
+    "v1.4.3：数据状态分离与备份按钮、375/390 布局修复、按时间排序、示例标识、标题与加载重试",
+    "新增雨天备选、今日卡住宿/室内、费用三段口径"
   ],
-  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.4.2.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.2-b42/Qingxing-v1.4.2.ipa",
-  "size": 16672168,
-  "fileSize": 16672168,
-  "releaseDate": "2026-09-13",
-  "sha256": "dc10c72213ef4853120bb30e56890b3ba89f8f5313a21410856084643e3aa25f"
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v1.4.3.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v1.4.3-b43/Qingxing-v1.4.3.ipa",
+  "size": 16674286,
+  "fileSize": 16674286,
+  "releaseDate": "2026-09-14",
+  "sha256": "312e86cddfd6c7c49ad000b2c9f4c22662896072689428b4403f282d76c8cb36"
 }
