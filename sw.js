@@ -1,5 +1,6 @@
-// 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
-const VERSION = 'qingxing-v30';
+// 轻行离线缓存：只有全部关键资源完整写入后才激活；私人数据不进入缓存。
+const VERSION = 'qingxing-v40';
+const INSTALL_MARKER = '/__qingxing_install_ok__';
 const CORE = [
   '/',
   '/index.html',
@@ -19,52 +20,62 @@ const CORE = [
   '/covers/kyoto.jpg',
 ];
 
+async function fetchAndCache(cache, url) {
+  const response = await fetch(url, { cache: 'no-cache' });
+  if (!response.ok) throw new Error('关键资源下载失败：' + response.status + ' ' + url);
+  await cache.put(url, response.clone());
+  return response;
+}
+
 async function precachePage(cache, pagePath) {
-  try {
-    const response = await fetch(pagePath, { cache: 'no-cache' });
-    if (!response.ok) return;
-    const html = await response.text();
-    const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
-    if (urls.length) {
-      try {
-        await cache.addAll(urls);
-      } catch {
-        // 个别资源失败可接受，运行期缓存会补上
-      }
-    }
-  } catch {
-    // 离线安装时跳过
-  }
+  const response = await fetchAndCache(cache, pagePath);
+  const html = await response.text();
+  const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
+  for (const url of urls) await fetchAndCache(cache, url);
 }
 
 async function precacheApp(cache) {
-  try {
-    await cache.addAll(CORE);
-  } catch {
-    // 单个资源失败不阻塞安装，剩余资源继续
-  }
+  await cache.addAll(CORE);
   await precachePage(cache, '/index.html');
   await precachePage(cache, '/tools/index.html');
   await precachePage(cache, '/translator/index.html');
+  await cache.put(INSTALL_MARKER, new Response('ok', {
+    status: 200,
+    headers: { 'Content-Type': 'text/plain' },
+  }));
 }
 
 self.addEventListener('install', (event) => {
-  event.waitUntil(
-    caches
-      .open(VERSION)
-      .then((cache) => precacheApp(cache))
-      .then(() => self.skipWaiting())
-      .catch(() => self.skipWaiting())
-  );
+  event.waitUntil((async () => {
+    // 失败安装留下的残片不参与后续判断，也不触碰旧缓存。
+    await caches.delete(VERSION);
+    try {
+      const cache = await caches.open(VERSION);
+      await precacheApp(cache);
+      await self.skipWaiting();
+    } catch (error) {
+      await caches.delete(VERSION).catch(() => {});
+      throw error;
+    }
+  })());
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil(
-    caches
-      .keys()
-      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('qingxing-') && key !== VERSION).map((key) => caches.delete(key))))
-      .then(() => self.clients.claim())
-  );
+  event.waitUntil((async () => {
+    const cache = await caches.open(VERSION);
+    const marker = await cache.match(INSTALL_MARKER);
+    if (!marker) {
+      // 未确认完整的新缓存绝不接管，也绝不删除仍可用的旧缓存。
+      await self.clients.claim();
+      return;
+    }
+    // 先接管客户端，避免旧 Worker 在清理期间再次写入旧缓存。
+    await self.clients.claim();
+    const keys = await caches.keys();
+    await Promise.all(
+      keys.filter((key) => key.startsWith('qingxing-') && key !== VERSION).map((key) => caches.delete(key))
+    );
+  })());
 });
 
 self.addEventListener('fetch', (event) => {
@@ -77,7 +88,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === '/version.json') return; // 更新检查必须走网络
+  if (url.pathname === '/version.json' || url.pathname === INSTALL_MARKER) return;
 
   if (request.mode === 'navigate') {
     event.respondWith(
