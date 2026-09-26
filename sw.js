@@ -1,6 +1,5 @@
-// 轻行离线缓存：只有全部关键资源完整写入后才激活；私人数据不进入缓存。
-const VERSION = 'qingxing-v40';
-const INSTALL_MARKER = '/__qingxing_install_ok__';
+// 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
+const VERSION = 'qingxing-v41';
 const CORE = [
   '/',
   '/index.html',
@@ -20,62 +19,109 @@ const CORE = [
   '/covers/kyoto.jpg',
 ];
 
-async function fetchAndCache(cache, url) {
-  const response = await fetch(url, { cache: 'no-cache' });
-  if (!response.ok) throw new Error('关键资源下载失败：' + response.status + ' ' + url);
-  await cache.put(url, response.clone());
-  return response;
+// 导航缓存键：把目录路径规范成它以 index.html 结尾的等价形式。
+function navCacheKey(url) {
+  const p = url.pathname;
+  if (p.endsWith('/')) return p + 'index.html';
+  if (p.endsWith('.html')) return p;
+  return p + '/index.html';
+}
+
+// 离线兜底页：被 301 跳转后缓存下来的响应带 redirected 标记，
+// 直接作为导航响应返回会让浏览器报 ERR_FAILED，需要用它的正文重建一份普通 Response。
+async function offlinePage() {
+  for (const key of ['/offline', '/offline.html']) {
+    const hit = await caches.match(key);
+    if (!hit) continue;
+    if (!hit.redirected) return hit;
+    try {
+      const text = await hit.clone().text();
+      return new Response(text, { status: 200, headers: { 'Content-Type': 'text/html;charset=utf-8' } });
+    } catch {
+      // 读取失败时继续找下一个候选
+    }
+  }
+  return null;
+}
+
+// 离线导航查找：先精确匹配，再按规范键/目录形式依次尝试；
+// 绝不用另一个功能页面的缓存顶替。
+async function matchNavigation(request, url) {
+  const p = url.pathname;
+  const keys = [p, navCacheKey(url)];
+  if (p.endsWith('/')) keys.push(p.slice(0, -1));
+  if (!p.endsWith('.html') && !p.endsWith('/')) keys.push(p + '/', p);
+  for (const key of [...new Set(keys)]) {
+    const hit = await caches.match(key, { ignoreSearch: true });
+    if (hit) return hit;
+  }
+  return caches.match(request, { ignoreSearch: true });
 }
 
 async function precachePage(cache, pagePath) {
-  const response = await fetchAndCache(cache, pagePath);
-  const html = await response.text();
-  const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
-  for (const url of urls) await fetchAndCache(cache, url);
+  try {
+    const response = await fetch(pagePath, { cache: 'no-cache' });
+    if (!response.ok) return;
+    const html = await response.clone().text();
+    // 页面 HTML 本身也要按规范键缓存，离线导航才能直接命中，而不是只缓存它引用的 JS/CSS。
+    try {
+      const key = navCacheKey(new URL(pagePath, self.location.href));
+      if (!response.redirected) await cache.put(key, response);
+      else {
+        const direct = await fetch(response.url, { cache: 'no-cache' });
+        if (direct.ok) await cache.put(key, direct);
+      }
+    } catch {
+      // 无法缓存 HTML 时靠运行期导航缓存补上
+    }
+    const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
+    if (urls.length) {
+      try {
+        await cache.addAll(urls);
+      } catch {
+        // 个别资源失败可接受，运行期缓存会补上
+      }
+    }
+  } catch {
+    // 离线安装时跳过
+  }
 }
 
 async function precacheApp(cache) {
-  await cache.addAll(CORE);
-  await precachePage(cache, '/index.html');
-  await precachePage(cache, '/tools/index.html');
-  await precachePage(cache, '/translator/index.html');
-  await cache.put(INSTALL_MARKER, new Response('ok', {
-    status: 200,
-    headers: { 'Content-Type': 'text/plain' },
-  }));
+  try {
+    await cache.addAll(CORE);
+  } catch {
+    // 单个资源失败不阻塞安装，剩余资源继续
+  }
+  // 用目录地址（而不是 *.html）预缓存页面：部分静态托管会把 *.html 301 到扩展名路径。
+  await precachePage(cache, '/');
+  await precachePage(cache, '/tools/');
+  await precachePage(cache, '/translator/');
+  return cache;
 }
 
 self.addEventListener('install', (event) => {
-  event.waitUntil((async () => {
-    // 失败安装留下的残片不参与后续判断，也不触碰旧缓存。
-    await caches.delete(VERSION);
-    try {
-      const cache = await caches.open(VERSION);
-      await precacheApp(cache);
-      await self.skipWaiting();
-    } catch (error) {
-      await caches.delete(VERSION).catch(() => {});
-      throw error;
-    }
-  })());
+  event.waitUntil(
+    caches
+      .open(VERSION)
+      .then((cache) => precacheApp(cache))
+      .then(async (cache) => {
+        // 关键外壳没进缓存就不要激活：宁可让新 Worker 变成 redundant，
+        // 也不能在旧缓存被清掉后留下一个打不开的离线版本。
+        const shell = (await cache.match('/index.html')) || (await cache.match('/')) || (await cache.match('/tools/index.html'));
+        if (!shell) throw new Error('precache-incomplete');
+      })
+      .then(() => self.skipWaiting())
+  );
 });
 
 self.addEventListener('activate', (event) => {
-  event.waitUntil((async () => {
-    const cache = await caches.open(VERSION);
-    const marker = await cache.match(INSTALL_MARKER);
-    if (!marker) {
-      // 未确认完整的新缓存绝不接管，也绝不删除仍可用的旧缓存。
-      await self.clients.claim();
-      return;
-    }
-    // 先接管客户端，避免旧 Worker 在清理期间再次写入旧缓存。
-    await self.clients.claim();
-    const keys = await caches.keys();
-    await Promise.all(
-      keys.filter((key) => key.startsWith('qingxing-') && key !== VERSION).map((key) => caches.delete(key))
-    );
-  })());
+  event.waitUntil(
+    caches
+      .keys()
+      .then((keys) => Promise.all(keys.filter((key) => key.startsWith('qingxing-') && key !== VERSION).map((key) => caches.delete(key))))
+      .then(() => self.clients.claim())
+  );
 });
 
 self.addEventListener('fetch', (event) => {
@@ -88,27 +134,27 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === '/version.json' || url.pathname === INSTALL_MARKER) return;
+  if (url.pathname === '/version.json') return; // 更新检查必须走网络
 
   if (request.mode === 'navigate') {
     event.respondWith(
       fetch(request)
         .then((response) => {
-          if (response && response.ok) {
+          // 按真实路径缓存导航响应：不能把翻译页写进 /index.html，
+          // 否则离线时任何未缓存页面都会拿到另一个功能页面。
+          if (response && response.ok && !response.redirected) {
             const copy = response.clone();
-            const key = url.pathname.startsWith('/tools') ? '/tools/index.html' : '/index.html';
+            const key = navCacheKey(url);
             caches.open(VERSION).then((cache) => cache.put(key, copy)).catch(() => {});
           }
           return response;
         })
         .catch(async () => {
-          const exact = await caches.match(request, { ignoreSearch: true });
-          if (exact) return exact;
-          const page = (await caches.match('/index.html')) || (await caches.match('/'));
-          if (page) return page;
-          const offline = await caches.match('/offline.html');
+          const cached = await matchNavigation(request, url);
+          if (cached) return cached;
+          const offline = await offlinePage();
           if (offline) return offline;
-          return new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><h1>暂时没有网络</h1><p>恢复网络后请重新打开。</p></html>', {
+          return new Response('<!doctype html><html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><h1>这个页面还没有离线缓存</h1><p>当前设备离线，且该页面从未在线打开过。联网后重新打开即可。</p>', {
             status: 200,
             headers: { 'Content-Type': 'text/html;charset=utf-8' },
           });
