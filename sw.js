@@ -1,5 +1,5 @@
 // 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
-const VERSION = 'qingxing-v45';
+const VERSION = 'qingxing-v46';
 const CORE = [
   '/',
   '/index.html',
@@ -7,6 +7,8 @@ const CORE = [
   '/tools/index.html',
   '/translator/',
   '/translator/index.html',
+  '/print/',
+  '/print/index.html',
   '/compat.js',
   '/offline.html',
   '/manifest.webmanifest',
@@ -59,44 +61,31 @@ async function matchNavigation(request, url) {
 }
 
 async function precachePage(cache, pagePath) {
-  try {
-    const response = await fetch(pagePath, { cache: 'no-cache' });
-    if (!response.ok) return;
-    const html = await response.clone().text();
-    // 页面 HTML 本身也要按规范键缓存，离线导航才能直接命中，而不是只缓存它引用的 JS/CSS。
-    try {
-      const key = navCacheKey(new URL(pagePath, self.location.href));
-      if (!response.redirected) await cache.put(key, response);
-      else {
-        const direct = await fetch(response.url, { cache: 'no-cache' });
-        if (direct.ok) await cache.put(key, direct);
-      }
-    } catch {
-      // 无法缓存 HTML 时靠运行期导航缓存补上
-    }
-    const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
-    if (urls.length) {
-      try {
-        await cache.addAll(urls);
-      } catch {
-        // 个别资源失败可接受，运行期缓存会补上
-      }
-    }
-  } catch {
-    // 离线安装时跳过
+  const response = await fetch(pagePath, { cache: 'no-cache' });
+  if (!response.ok) throw new Error('precache-page-failed:' + pagePath);
+  const html = await response.clone().text();
+  // 页面 HTML 本身也要按规范键缓存，离线导航才能直接命中，而不是只缓存它引用的 JS/CSS。
+  const key = navCacheKey(new URL(pagePath, self.location.href));
+  if (!response.redirected) await cache.put(key, response);
+  else {
+    const direct = await fetch(response.url, { cache: 'no-cache' });
+    if (!direct.ok) throw new Error('precache-page-redirect-failed:' + pagePath);
+    await cache.put(key, direct);
+  }
+  const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
+  if (urls.length) await cache.addAll(urls);
+  for (const url of urls) {
+    if (!(await cache.match(url))) throw new Error('precache-asset-missing:' + url);
   }
 }
 
 async function precacheApp(cache) {
-  try {
-    await cache.addAll(CORE);
-  } catch {
-    // 单个资源失败不阻塞安装，剩余资源继续
-  }
+  await cache.addAll(CORE);
   // 用目录地址（而不是 *.html）预缓存页面：部分静态托管会把 *.html 301 到扩展名路径。
   await precachePage(cache, '/');
   await precachePage(cache, '/tools/');
   await precachePage(cache, '/translator/');
+  await precachePage(cache, '/print/');
   return cache;
 }
 
@@ -106,10 +95,15 @@ self.addEventListener('install', (event) => {
       .open(VERSION)
       .then((cache) => precacheApp(cache))
       .then(async (cache) => {
-        // 关键外壳没进缓存就不要激活：宁可让新 Worker 变成 redundant，
-        // 也不能在旧缓存被清掉后留下一个打不开的离线版本。
-        const shell = (await cache.match('/index.html')) || (await cache.match('/')) || (await cache.match('/tools/index.html'));
-        if (!shell) throw new Error('precache-incomplete');
+        // 全部离线页面和它们的 JS/CSS 都已缓存后才允许激活；失败时继续使用旧 Worker。
+        const requiredPages = ['/index.html', '/tools/index.html', '/translator/index.html', '/print/index.html'];
+        const complete = await Promise.all(requiredPages.map((key) => cache.match(key)));
+        if (complete.some((response) => !response)) throw new Error('precache-incomplete');
+      })
+      .catch(async (error) => {
+        // 移除失败安装留下的部分缓存，避免缓存增长或激活缺资源的新版本。
+        await caches.delete(VERSION);
+        throw error;
       })
       .then(() => self.skipWaiting())
   );
@@ -168,7 +162,9 @@ self.addEventListener('fetch', (event) => {
       if (cached) return cached;
       return fetch(request)
         .then((response) => {
-          if (response && response.ok && (url.pathname.startsWith('/_next/') || /\.(?:js|css|png|jpe?g|svg|webp|gif|ico|woff2?|ttf)$/i.test(url.pathname))) {
+          // PDF.js loads .mjs workers, .bcmap CMaps and .pfb fonts; Tesseract loads .gz language data.
+          // Cache these same-origin resources only after first use, keeping the initial install small.
+          if (response && response.ok && (url.pathname.startsWith('/_next/') || /\.(?:js|mjs|css|png|jpe?g|svg|webp|gif|ico|woff2?|ttf|gz|bcmap|pfb|wasm)$/i.test(url.pathname))) {
             const copy = response.clone();
             caches.open(VERSION).then((cache) => cache.put(request, copy)).catch(() => {});
           }
