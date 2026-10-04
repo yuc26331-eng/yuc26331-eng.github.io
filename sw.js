@@ -1,5 +1,7 @@
 // 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
-const VERSION = 'qingxing-v47';
+// 每次发布必须递增这里的版本号：脚本字节变化才会触发浏览器安装新 Worker 并重新预缓存。
+// 否则新构建即使已经上线，已经装过旧 Worker 的设备仍会一直命中旧 index.html 与旧 chunk。
+const VERSION = 'qingxing-v48';
 const CORE = [
   '/',
   '/index.html',
@@ -61,26 +63,36 @@ async function matchNavigation(request, url) {
 }
 
 async function precachePage(cache, pagePath) {
-  const response = await fetch(pagePath, { cache: 'no-cache' });
+  const response = await fetch(pagePath, { cache: 'reload' });
   if (!response.ok) throw new Error('precache-page-failed:' + pagePath);
   const html = await response.clone().text();
   // 页面 HTML 本身也要按规范键缓存，离线导航才能直接命中，而不是只缓存它引用的 JS/CSS。
   const key = navCacheKey(new URL(pagePath, self.location.href));
   if (!response.redirected) await cache.put(key, response);
   else {
-    const direct = await fetch(response.url, { cache: 'no-cache' });
+    const direct = await fetch(response.url, { cache: 'reload' });
     if (!direct.ok) throw new Error('precache-page-redirect-failed:' + pagePath);
     await cache.put(key, direct);
   }
   const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
-  if (urls.length) await cache.addAll(urls);
+  // 逐个绕过 HTTP 缓存抓取资源；cache.addAll 会把旧 chunk 当成新版本缓存起来。
+  for (const url of urls) {
+    const asset = await fetch(url, { cache: 'reload' });
+    if (!asset.ok) throw new Error('precache-asset-failed:' + url);
+    await cache.put(url, asset);
+  }
   for (const url of urls) {
     if (!(await cache.match(url))) throw new Error('precache-asset-missing:' + url);
   }
 }
 
 async function precacheApp(cache) {
-  await cache.addAll(CORE);
+  // 不能用 cache.addAll：它允许命中浏览器 HTTP 缓存，会把旧 shell/旧 chunk 缓存进新版本。
+  for (const url of CORE) {
+    const response = await fetch(url, { cache: 'reload' });
+    if (!response.ok) throw new Error('precache-core-failed:' + url);
+    await cache.put(url, response);
+  }
   // 用目录地址（而不是 *.html）预缓存页面：部分静态托管会把 *.html 301 到扩展名路径。
   await precachePage(cache, '/');
   await precachePage(cache, '/tools/');
