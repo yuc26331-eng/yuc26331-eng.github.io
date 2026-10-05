@@ -1,0 +1,68 @@
+name: Protected Pages rollback
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_sha:
+        description: Commit SHA on main to restore
+        required: true
+        type: string
+      confirmation:
+        description: Type ROLLBACK to confirm the code rollback
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: pages-main
+  cancel-in-progress: false
+
+jobs:
+  rollback:
+    if: github.ref == 'refs/heads/main' && inputs.confirmation == 'ROLLBACK'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # actions/checkout v7.0.1
+        with:
+          ref: main
+          fetch-depth: 0
+      - name: Validate target and create a new rollback commit
+        env:
+          TARGET_SHA: ${{ inputs.target_sha }}
+        run: |
+          set -euo pipefail
+          if [[ ! "$TARGET_SHA" =~ ^[0-9a-f]{7,40}$ ]]; then
+            echo "Enter a commit SHA from main." >&2
+            exit 1
+          fi
+
+          git fetch origin main
+          CURRENT_SHA="$(git rev-parse --verify 'refs/remotes/origin/main^{commit}')"
+          TARGET_COMMIT="$(git rev-parse --verify "${TARGET_SHA}^{commit}")"
+          if [[ "$TARGET_COMMIT" == "$CURRENT_SHA" ]]; then
+            echo "The selected commit is already deployed." >&2
+            exit 1
+          fi
+          if ! git merge-base --is-ancestor "$TARGET_COMMIT" "$CURRENT_SHA"; then
+            echo "The selected commit is not an ancestor of main." >&2
+            exit 1
+          fi
+
+          git checkout main
+          git reset --hard "$CURRENT_SHA"
+          cp -a .github/workflows "$RUNNER_TEMP/current-workflows"
+          git read-tree --reset -u "$TARGET_COMMIT"
+          mkdir -p .github
+          cp -a "$RUNNER_TEMP/current-workflows" .github/workflows
+          git add --all
+          git diff --cached --check
+          if git diff --cached --quiet; then
+            echo "The selected commit has no site changes to restore." >&2
+            exit 1
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -m "rollback: restore Pages to ${TARGET_COMMIT:0:12}"
+          git push origin HEAD:main
