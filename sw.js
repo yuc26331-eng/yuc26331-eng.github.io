@@ -1,7 +1,7 @@
 // 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
 // 每次发布必须递增这里的版本号：脚本字节变化才会触发浏览器安装新 Worker 并重新预缓存。
 // 否则新构建即使已经上线，已经装过旧 Worker 的设备仍会一直命中旧 index.html 与旧 chunk。
-const VERSION = 'qingxing-v60';
+const VERSION = 'qingxing-v61';
 const CORE = [
   '/',
   '/index.html',
@@ -102,9 +102,17 @@ async function precacheApp(cache) {
 }
 
 self.addEventListener('install', (event) => {
+  let hadCompleteCache = false;
   event.waitUntil(
-    caches
-      .open(VERSION)
+    Promise.resolve().then(async () => {
+      // 同版本因不同注册地址再次安装时，失败不能删掉已激活版本的完整缓存。
+      if (await caches.has(VERSION)) {
+        const existing = await caches.open(VERSION);
+        const pages = await Promise.all(['/index.html', '/tools/index.html', '/translator/index.html', '/print/index.html'].map(key => existing.match(key)));
+        hadCompleteCache = pages.every(Boolean);
+      }
+      return caches.open(VERSION);
+    })
       .then((cache) => precacheApp(cache))
       .then(async (cache) => {
         // 全部离线页面和它们的 JS/CSS 都已缓存后才允许激活；失败时继续使用旧 Worker。
@@ -114,7 +122,8 @@ self.addEventListener('install', (event) => {
       })
       .catch(async (error) => {
         // 移除失败安装留下的部分缓存，避免缓存增长或激活缺资源的新版本。
-        await caches.delete(VERSION);
+        const activeVersion = self.registration.active ? new URL(self.registration.active.scriptURL).searchParams.get('v') : null;
+        if (!hadCompleteCache && activeVersion !== VERSION) await caches.delete(VERSION);
         throw error;
       })
       .then(() => self.skipWaiting())
