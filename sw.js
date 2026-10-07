@@ -1,7 +1,7 @@
 // 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
 // 每次发布必须递增这里的版本号：脚本字节变化才会触发浏览器安装新 Worker 并重新预缓存。
 // 否则新构建即使已经上线，已经装过旧 Worker 的设备仍会一直命中旧 index.html 与旧 chunk。
-const VERSION = 'qingxing-v63';
+const VERSION = 'qingxing-v64';
 const CORE = [
   '/',
   '/index.html',
@@ -21,6 +21,8 @@ const CORE = [
   '/covers/dali.jpg',
   '/covers/hangzhou.jpg',
   '/covers/kyoto.jpg',
+  '/guides/japan-entry/disembarkation-card.jpg',
+  '/guides/japan-entry/customs-declaration.jpg',
 ];
 
 // 导航缓存键：把目录路径规范成它以 index.html 结尾的等价形式。
