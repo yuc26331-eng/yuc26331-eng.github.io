@@ -1,1 +1,1 @@
-{"version":"1.4.25","build":"be453b2","sw":"qingxing-v67","updateTime":"2026-10-08T13:52:50.951Z","changelog":"- 恢复网页 Firebase 构建配置和手动同步入口。"}
+{"version":"1.4.26","build":"fa24097","sw":"qingxing-v68","updateTime":"2026-10-09T06:08:49.748Z","changelog":"- 修复云端读取长时间加载：15 秒超时、取消旧请求后重试，并行读取首次快照。"}
