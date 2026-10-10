@@ -8,7 +8,7 @@
 // 3. 旧版本静态缓存不在 activate 阶段删除，而是等新版本页面确认自己启动成功后再安全清理，
 //    杜绝“前端提示更新失败、后台却已激活并删掉旧缓存”的半新半旧状态（白屏根因）。
 // 4. 这里只操作 Cache Storage 中的静态资源缓存，绝不触碰 IndexedDB / localStorage 用户数据。
-const VERSION = 'qingxing-v70';
+const VERSION = 'qingxing-v71';
 
 // 核心启动资源：只有全部成功才算安装成功，新版本必须能靠它们启动。
 const CORE = [
@@ -191,20 +191,24 @@ async function setActiveCache(name){await (await caches.open(CACHE_STATE)).put('
 async function rebuildCore(){
   if(repairJob)return repairJob;
   repairJob=(async()=>{
-    const name=VERSION+'-repair-'+Date.now()+'-'+Math.random().toString(36).slice(2);let committed=false;
+    const name=VERSION+'-repair-'+Date.now()+'-'+Math.random().toString(36).slice(2);let superseded=false;
     const stage=await caches.open(name);
     try{
       await precacheCore(stage);await precacheOptional(stage);
       if(!await cacheIsComplete(stage))throw new Error('新缓存缺少核心页面或资源');
-      await setActiveCache(name);committed=true;
-      // The verified stage remains usable even if quota prevents the optional canonical copy.
+      await setActiveCache(name);
+      // 尝试把校验通过的暂存缓存提升为规范缓存名；配额不足时暂存缓存继续作为在用缓存。
       try{
         const target=await caches.open(VERSION);
         await mapLimit(await stage.keys(),CONCURRENCY,async request=>{const hit=await stage.match(request);if(hit)await target.put(request,hit);});
-        if(await cacheIsComplete(target))await setActiveCache(VERSION);
+        if(await cacheIsComplete(target)){await setActiveCache(VERSION);superseded=true;}
       }catch{}
       return await activeCacheName();
-    }finally{if(!committed)await caches.delete(name);}
+    }finally{
+      // 只有当规范缓存确实可用、暂存副本已被取代时才删除它，避免每次修复都留下第二份完整缓存。
+      // 失败、或规范缓存不完整时保留暂存缓存 —— 它正是在用的那份。
+      if(superseded)await caches.delete(name).catch(()=>false);
+    }
   })().finally(()=>{repairJob=null;});return repairJob;
 }
 async function cleanOldCaches(){

@@ -1,1 +1,1 @@
-{"version":"1.4.28","build":"e89e7a0","sw":"qingxing-v70","updateTime":"2026-10-10T13:15:13.834Z","changelog":"- 修复弱网首次打开时启动提示过早改动页面的问题，避免触发页面重新渲染。"}
+{"version":"1.4.29","build":"490ec5a","sw":"qingxing-v71","updateTime":"2026-10-10T16:54:18.275Z","changelog":"- 网页缓存修复成功后不再多留一份完整缓存副本，减少本机存储占用。"}
