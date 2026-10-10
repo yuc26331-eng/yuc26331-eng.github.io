@@ -1,1 +1,1 @@
-{"version":"1.4.26","build":"fa24097","sw":"qingxing-v68","updateTime":"2026-10-09T06:08:49.748Z","changelog":"- 修复云端读取长时间加载：15 秒超时、取消旧请求后重试，并行读取首次快照。"}
+{"version":"1.4.27","build":"64afa1a","sw":"qingxing-v69","updateTime":"2026-10-10T10:39:02.866Z","changelog":"- 加强旅行数据保存、完整备份和回档保护；同步冲突需要核对后处理。"}

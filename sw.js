@@ -8,7 +8,7 @@
 // 3. 旧版本静态缓存不在 activate 阶段删除，而是等新版本页面确认自己启动成功后再安全清理，
 //    杜绝“前端提示更新失败、后台却已激活并删掉旧缓存”的半新半旧状态（白屏根因）。
 // 4. 这里只操作 Cache Storage 中的静态资源缓存，绝不触碰 IndexedDB / localStorage 用户数据。
-const VERSION = 'qingxing-v68';
+const VERSION = 'qingxing-v69';
 
 // 核心启动资源：只有全部成功才算安装成功，新版本必须能靠它们启动。
 const CORE = [
@@ -47,13 +47,15 @@ const CONCURRENCY = 6;
 async function mapLimit(items, limit, worker) {
   const results = new Array(items.length);
   let cursor = 0;
+  let failed = false;
   const runners = new Array(Math.min(Math.max(1, limit), Math.max(1, items.length))).fill(0).map(async () => {
-    while (cursor < items.length) {
+    while (!failed && cursor < items.length) {
       const index = cursor++;
-      results[index] = await worker(items[index], index);
+      try {results[index] = await worker(items[index], index);}catch(error){failed=true;throw error;}
     }
   });
-  await Promise.all(runners);
+  const completed=await Promise.allSettled(runners);
+  const failure=completed.find(result=>result.status==='rejected');if(failure)throw failure.reason;
   return results;
 }
 
@@ -68,8 +70,9 @@ function navCacheKey(url) {
 // 离线兜底页：被 301 跳转后缓存下来的响应带 redirected 标记，
 // 直接作为导航响应返回会让浏览器报 ERR_FAILED，需要用它的正文重建一份普通 Response。
 async function offlinePage() {
+  const current=await caches.open(await activeCacheName());
   for (const key of ['/offline', '/offline.html']) {
-    const hit = await caches.match(key);
+    const hit = await current.match(key)||await caches.match(key);
     if (!hit) continue;
     if (!hit.redirected) return hit;
     try {
@@ -85,27 +88,29 @@ async function offlinePage() {
 // 离线导航查找：先精确匹配，再按规范键/目录形式依次尝试；
 // 绝不用另一个功能页面的缓存顶替。
 async function matchNavigation(request, url) {
+  const current=await caches.open(await activeCacheName());
   const p = url.pathname;
   const keys = [p, navCacheKey(url)];
   if (p.endsWith('/')) keys.push(p.slice(0, -1));
   if (!p.endsWith('.html') && !p.endsWith('/')) keys.push(p + '/', p);
   for (const key of [...new Set(keys)]) {
-    const hit = await caches.match(key, { ignoreSearch: true });
+    const hit = await current.match(key,{ignoreSearch:true})||await caches.match(key, { ignoreSearch: true });
     if (hit) return hit;
   }
-  return caches.match(request, { ignoreSearch: true });
+  return await current.match(request,{ignoreSearch:true})||caches.match(request, { ignoreSearch: true });
 }
 
 // 抓取单个资源并写入缓存；绕开浏览器 HTTP 缓存，避免把旧 chunk 当成新版本缓存起来。
 async function fetchInto(cache, url) {
-  const response = await fetch(url, { cache: 'reload' });
+  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),15000);
+  let response;try{response=await fetch(url,{cache:'reload',signal:controller.signal});const body=await response.arrayBuffer();response=new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});}finally{clearTimeout(timer);}
   if (!response.ok) throw new Error('precache-failed:' + url);
   await cache.put(url, response.clone());
   return response;
 }
 
 async function precachePage(cache, pagePath) {
-  const response = await fetch(pagePath, { cache: 'reload' });
+  const response = await fetchInto(cache,pagePath);
   if (!response.ok) throw new Error('precache-page-failed:' + pagePath);
   const html = await response.clone().text();
   // 页面 HTML 本身也要按规范键缓存，离线导航才能直接命中，而不是只缓存它引用的 JS/CSS。
@@ -125,6 +130,7 @@ async function precachePage(cache, pagePath) {
 }
 
 async function precacheCore(cache) {
+  await fetchInto(cache,'/offline-resources.json');
   // 不能用 cache.addAll：它允许命中浏览器 HTTP 缓存，会把旧 shell/旧 chunk 缓存进新版本。
   await mapLimit(CORE, CONCURRENCY, (url) => fetchInto(cache, url));
   // 用目录地址（而不是 *.html）预缓存页面：部分静态托管会把 *.html 301 到扩展名路径。
@@ -150,47 +156,69 @@ async function precacheOptional(cache) {
   return cache;
 }
 
-async function currentCacheIsComplete() {
-  if (!(await caches.has(VERSION))) return false;
-  try {
-    const existing = await caches.open(VERSION);
-    const pages = await Promise.all(REQUIRED_PAGES.map((key) => existing.match(key)));
-    return pages.every(Boolean);
-  } catch {
-    return false;
-  }
+const CACHE_STATE='qingxing-cache-state';
+const readyClients=new Map();
+let repairJob=null;
+async function activeCacheName(){
+  try{const response=await (await caches.open(CACHE_STATE)).match('/active-cache');const row=response?await response.json():null;
+    if(row&&row.version===VERSION&&typeof row.active==='string'&&(row.active===VERSION||row.active.startsWith(VERSION+'-repair-'))&&await caches.has(row.active))return row.active;
+  }catch{}
+  return VERSION;
 }
-
-async function cleanOldCaches() {
-  try {
-    const keys = await caches.keys();
-    await Promise.all(keys.filter((key) => key.startsWith('qingxing-') && key !== VERSION).map((key) => caches.delete(key)));
-  } catch {
-    // 清理失败不影响新版本使用。
+async function cacheIsComplete(cache){
+  const manifestResponse=await cache.match('/offline-resources.json');if(!manifestResponse?.ok)return false;
+  const manifest=await manifestResponse.json();
+  if(manifest.format!=='qingxing-offline-resources-v1'||manifest.sw!==VERSION||!Array.isArray(manifest.core)||!Array.isArray(manifest.resources))return false;
+  const records=new Map(manifest.resources.map(row=>[row.path,row]));
+  for(const path of manifest.core){
+    const row=records.get(path),response=await cache.match(path);if(!row||!response?.ok)return false;
+    const bytes=await response.arrayBuffer();if(bytes.byteLength!==row.size)return false;
+    const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),value=>value.toString(16).padStart(2,'0')).join('');if(hash!==row.sha256)return false;
   }
+  for(const key of CORE.filter(path=>path!=='/'&&!path.endsWith('/'))){if(!(await cache.match(key))?.ok)return false;}
+  for(const key of REQUIRED_PAGES){
+    const response=await cache.match(key);if(!response?.ok)return false;
+    const html=await response.text();const assets=[...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map(match=>match[1]);
+    if(!html.trim()||!assets.length)return false;
+    for(const asset of assets)if(!(await cache.match(asset))?.ok)return false;
+  }
+  return true;
 }
-
-self.addEventListener('install', (event) => {
-  let hadCompleteCache = false;
-  event.waitUntil(
-    (async () => {
-      // 同版本因不同注册地址再次安装时，失败不能删掉已激活版本的完整缓存。
-      hadCompleteCache = await currentCacheIsComplete();
-      const cache = await caches.open(VERSION);
-      try {
-        await precacheCore(cache);
-        // 非核心资源放在核心成功之后，且失败不抛出。
-        await precacheOptional(cache);
-      } catch (error) {
-        // 移除失败安装留下的部分缓存，避免缓存增长或激活缺资源的新版本。
-        const activeVersion = self.registration.active ? new URL(self.registration.active.scriptURL).searchParams.get('v') : null;
-        if (!hadCompleteCache && activeVersion !== VERSION) await caches.delete(VERSION);
-        throw error;
-      }
-      await self.skipWaiting();
-    })()
-  );
-});
+async function currentCacheIsComplete(){
+  try{const name=await activeCacheName();return await caches.has(name)&&await cacheIsComplete(await caches.open(name));}catch{return false;}
+}
+async function setActiveCache(name){await (await caches.open(CACHE_STATE)).put('/active-cache',new Response(JSON.stringify({version:VERSION,active:name}),{headers:{'Content-Type':'application/json'}}));}
+async function rebuildCore(){
+  if(repairJob)return repairJob;
+  repairJob=(async()=>{
+    const name=VERSION+'-repair-'+Date.now()+'-'+Math.random().toString(36).slice(2);let committed=false;
+    const stage=await caches.open(name);
+    try{
+      await precacheCore(stage);await precacheOptional(stage);
+      if(!await cacheIsComplete(stage))throw new Error('新缓存缺少核心页面或资源');
+      await setActiveCache(name);committed=true;
+      // The verified stage remains usable even if quota prevents the optional canonical copy.
+      try{
+        const target=await caches.open(VERSION);
+        await mapLimit(await stage.keys(),CONCURRENCY,async request=>{const hit=await stage.match(request);if(hit)await target.put(request,hit);});
+        if(await cacheIsComplete(target))await setActiveCache(VERSION);
+      }catch{}
+      return await activeCacheName();
+    }finally{if(!committed)await caches.delete(name);}
+  })().finally(()=>{repairJob=null;});return repairJob;
+}
+async function cleanOldCaches(){
+  if(!await currentCacheIsComplete())return {complete:false,waiting:0,removed:[]};
+  const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
+  const waiting=clients.filter(client=>readyClients.get(client.id)!==VERSION).length;
+  if(waiting)return {complete:true,waiting,removed:[]};
+  const current=await activeCacheName();
+  const keys=await caches.keys();
+  const removed=keys.filter(key=>key.startsWith('qingxing-')&&key!==current&&key!==CACHE_STATE);
+  await Promise.all(removed.map(key=>caches.delete(key)));
+  return {complete:true,waiting:0,removed};
+}
+self.addEventListener('install',event=>{event.waitUntil((async()=>{await rebuildCore();await self.skipWaiting();})());});
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -203,15 +231,18 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-self.addEventListener('message', (event) => {
-  const type = event.data && event.data.type;
-  if (type === 'SKIP_WAITING') {
-    self.skipWaiting();
-    return;
+self.addEventListener('message',event=>{
+  const type=event.data&&event.data.type;
+  if(type==='SKIP_WAITING'){self.skipWaiting();return;}
+  if(type==='CACHE_READY'){
+    if(event.data.version===VERSION&&event.source?.id)readyClients.set(event.source.id,VERSION);
+    event.waitUntil((async()=>{try{const result=await cleanOldCaches();event.ports?.[0]?.postMessage({ok:true,version:VERSION,...result});}catch(error){event.ports?.[0]?.postMessage({ok:false,error:String(error)});}})());return;
   }
-  if (type === 'CACHE_READY') {
-    // 新版本页面已成功启动：此时清理旧版本静态缓存是安全的。
-    event.waitUntil(cleanOldCaches());
+  if(type==='REPAIR_CACHE'||type==='VERIFY_CACHE'){
+    event.waitUntil((async()=>{
+      try{const name=type==='REPAIR_CACHE'?await rebuildCore():await activeCacheName();const ok=await cacheIsComplete(await caches.open(name));event.ports?.[0]?.postMessage({ok,version:VERSION,cacheName:name});}
+      catch(error){event.ports?.[0]?.postMessage({ok:false,version:VERSION,error:String(error)});}
+    })());
   }
 });
 
@@ -225,18 +256,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (url.pathname === '/version.json') return; // 更新检查必须走网络
+  if (url.pathname === '/version.json' || url.pathname === '/offline-resources.json') return; // 更新检查必须走网络
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      (async()=>{const cache=await caches.open(await activeCacheName());const core=REQUIRED_PAGES.includes(navCacheKey(url))?await cache.match(navCacheKey(url)):null;if(core)return core;return fetch(request);})()
         .then((response) => {
           // 按真实路径缓存导航响应：不能把翻译页写进 /index.html，
           // 否则离线时任何未缓存页面都会拿到另一个功能页面。
           if (response && response.ok && !response.redirected) {
             const copy = response.clone();
             const key = navCacheKey(url);
-            caches.open(VERSION).then((cache) => cache.put(key, copy)).catch(() => {});
+            activeCacheName().then(name=>caches.open(name)).then((cache) => cache.put(key, copy)).catch(() => {});
           }
           return response;
         })
@@ -255,15 +286,15 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) return cached;
+    activeCacheName().then(name=>caches.open(name)).then(cache=>cache.match(request)).then(async (current)=>{const cached=current||await caches.match(request);
+      if (cached && request.cache!=='reload' && request.cache!=='no-store') return cached;
       return fetch(request)
         .then((response) => {
           // PDF.js loads .mjs workers, .bcmap CMaps and .pfb fonts; Tesseract loads .gz language data.
           // Cache these same-origin resources only after first use, keeping the initial install small.
           if (response && response.ok && (url.pathname.startsWith('/_next/') || /\.(?:js|mjs|css|png|jpe?g|svg|webp|gif|ico|woff2?|ttf|gz|bcmap|pfb|wasm)$/i.test(url.pathname))) {
             const copy = response.clone();
-            caches.open(VERSION).then((cache) => cache.put(request, copy)).catch(() => {});
+            activeCacheName().then(name=>caches.open(name)).then((cache) => cache.put(request, copy)).catch(() => {});
           }
           return response;
         })
