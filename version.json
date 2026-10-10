@@ -1,1 +1,1 @@
-{"version":"1.4.27","build":"64afa1a","sw":"qingxing-v69","updateTime":"2026-10-10T10:39:02.866Z","changelog":"- 加强旅行数据保存、完整备份和回档保护；同步冲突需要核对后处理。"}
+{"version":"1.4.28","build":"e89e7a0","sw":"qingxing-v70","updateTime":"2026-10-10T13:15:13.834Z","changelog":"- 修复弱网首次打开时启动提示过早改动页面的问题，避免触发页面重新渲染。"}

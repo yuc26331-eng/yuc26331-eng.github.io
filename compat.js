@@ -5,41 +5,45 @@
       return this.split(String(search)).join(String(replacement));
     };
   }
-  // 仅修复网页代码缓存与 Service Worker：绝不触碰 IndexedDB / localStorage 用户数据。
-  // 第一次点击只重新注册离线缓存（不动任何缓存）；仍然打不开时才清理 qingxing-* 静态代码缓存。
+  function bounded(promise, milliseconds) {
+    return new Promise(function (resolve, reject) {
+      var timer = window.setTimeout(function () { reject(new Error('cache verification timeout')); }, milliseconds);
+      promise.then(function (value) { window.clearTimeout(timer); resolve(value); }, function (error) { window.clearTimeout(timer); reject(error); });
+    });
+  }
+  // React owns the loading markup. Never replace it before hydration.
+  // The app provides its own loading/retry UI after React has started.
   window.__qingxingRepairCache = function () {
-    var reload = function () { location.reload(); };
-    try {
-      if (!('serviceWorker' in navigator) || !window.caches) { reload(); return; }
-      var tried = false;
-      try { tried = sessionStorage.getItem('qingxing.repairTried') === '1'; } catch (e) { tried = false; }
-      if (!tried) {
-        try { sessionStorage.setItem('qingxing.repairTried', '1'); } catch (e) { /* 忽略 */ }
-        navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }).catch(function () {}).then(reload);
-        return;
-      }
-      // 第二次：只清理静态资源缓存（qingxing-*），随后重新注册离线缓存。
-      caches.keys().then(function (keys) {
-        return Promise.all(keys.filter(function (key) { return key.indexOf('qingxing-') === 0; }).map(function (key) { return caches.delete(key); }));
-      }).catch(function () {}).then(function () {
-        return navigator.serviceWorker.getRegistrations();
-      }).then(function (regs) {
-        return Promise.all(regs.map(function (reg) { return reg.unregister(); }));
-      }).catch(function () {}).then(function () {
-        return navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' });
-      }).catch(function () {}).then(reload);
-    } catch (e) {
-      reload();
-    }
+    if (!('serviceWorker' in navigator) || !window.MessageChannel) { window.location.reload(); return Promise.resolve(); }
+    return bounded(Promise.resolve().then(function () { return navigator.serviceWorker.register('/sw.js', { scope: '/', updateViaCache: 'none' }); }), 30000).then(function (registration) {
+      return bounded(registration.update(), 30000).then(function () {
+        return new Promise(function (resolve, reject) {
+          var interval, timer;
+          function check() {
+            if (!registration.installing && !registration.waiting && registration.active && registration.active.state === 'activated') {
+              window.clearInterval(interval); window.clearTimeout(timer); resolve(registration.active);
+            }
+          }
+          interval = window.setInterval(check, 250);
+          timer = window.setTimeout(function () { window.clearInterval(interval); reject(new Error('worker activation timeout')); }, 90000);
+          check();
+        });
+      });
+    }).then(function (worker) {
+      return new Promise(function (resolve, reject) {
+        var channel = new window.MessageChannel();
+        var timer = window.setTimeout(function () { channel.port1.close(); reject(new Error('worker verification timeout')); }, 90000);
+        channel.port1.onmessage = function (event) {
+          window.clearTimeout(timer); channel.port1.close();
+          var data = event.data;
+          if (data && data.ok === true && /^qingxing-v\d+$/.test(data.version)) resolve();
+          else reject(new Error('cache verification failed'));
+        };
+        try { worker.postMessage({ type: 'REPAIR_CACHE' }, [channel.port2]); }
+        catch (error) { window.clearTimeout(timer); channel.port1.close(); reject(error); }
+      });
+    }).then(function () { window.location.reload(); }).catch(function () {
+      window.alert('缓存校验未完成，现有缓存和旅行数据已保留。请在网络恢复后重试。');
+    });
   };
-  window.setTimeout(function () {
-    var loading = document.querySelector('[data-app-loading]');
-    if (!loading) return;
-    loading.innerHTML =
-      '<div class="compat-message"><strong>页面没有正常启动</strong>' +
-      '<p>这通常是网页离线缓存没有升级完成，不一定是手机系统的问题。本机旅行数据没有丢失。</p>' +
-      '<p>先点“重新加载”；如果反复打不开，再点“修复网页缓存”重新注册离线缓存。修复只会清理网页代码缓存，不会删除旅行数据。</p>' +
-      '<button type="button" onclick="location.reload()">重新加载</button>' +
-      '<button type="button" onclick="window.__qingxingRepairCache&&window.__qingxingRepairCache()">修复网页缓存</button></div>';
-  }, 12000);
 }());
