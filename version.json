@@ -1,1 +1,1 @@
-{"version":"1.4.29","build":"490ec5a","sw":"qingxing-v71","updateTime":"2026-10-10T16:54:18.275Z","changelog":"- 网页缓存修复成功后不再多留一份完整缓存副本，减少本机存储占用。"}
+{"version":"1.4.29","build":"4d19380","sw":"qingxing-v71","updateTime":"2026-10-10T17:39:58.541Z","changelog":"- 网页缓存修复成功后不再多留一份完整缓存副本，减少本机存储占用。"}
