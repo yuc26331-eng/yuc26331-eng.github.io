@@ -8,7 +8,9 @@
 // 3. 旧版本静态缓存不在 activate 阶段删除，而是等新版本页面确认自己启动成功后再安全清理，
 //    杜绝“前端提示更新失败、后台却已激活并删掉旧缓存”的半新半旧状态（白屏根因）。
 // 4. 这里只操作 Cache Storage 中的静态资源缓存，绝不触碰 IndexedDB / localStorage 用户数据。
-const VERSION = 'qingxing-v72';
+const VERSION = 'qingxing-v73';
+// 旧版Worker只清理qingxing-*：隔离正在安装的缓存，防止旧页面确认时误删它。
+const STAGE_PREFIX = 'qx-static-'+VERSION+'-repair-';
 
 // 核心启动资源：只有全部成功才算安装成功，新版本必须能靠它们启动。
 const CORE = [
@@ -32,7 +34,7 @@ const CORE = [
   '/covers/kyoto.jpg',
 ];
 
-// 非核心资源：功能页大图等。安装阶段尽力缓存，失败不影响升级；首次使用时也会被运行时缓存。
+// 非核心资源：功能页大图等。页面启动后尽力缓存，失败不影响升级；首次使用时也会被运行时缓存。
 const OPTIONAL = [
   '/guides/japan-entry/disembarkation-card.jpg',
   '/guides/japan-entry/customs-declaration.jpg',
@@ -101,43 +103,56 @@ async function matchNavigation(request, url) {
 }
 
 // 抓取单个资源并写入缓存；绕开浏览器 HTTP 缓存，避免把旧 chunk 当成新版本缓存起来。
-async function fetchInto(cache, url) {
-  const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),15000);
-  let response;try{response=await fetch(url,{cache:'reload',signal:controller.signal});const body=await response.arrayBuffer();response=new Response(body,{status:response.status,statusText:response.statusText,headers:response.headers});}finally{clearTimeout(timer);}
-  if (!response.ok) throw new Error('precache-failed:' + url);
-  await cache.put(url, response.clone());
+async function matchesResource(response, record) {
+  if (!response?.ok) return false;
+  try{
+    const bytes=await response.clone().arrayBuffer();
+    if(bytes.byteLength!==record.size)return false;
+    const hash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),value=>value.toString(16).padStart(2,'0')).join('');
+    return hash===record.sha256;
+  }catch{return false;}
+}
+async function fetchInto(cache, url, record=null, previousCaches=[], attempts=2) {
+  // 旧静态文件仅在与新版清单完全一致时复用；旧HTML或损坏资源不能冒充新版。
+  if(record){
+    const own=await cache.match(url);
+    if(await matchesResource(own,record))return own;
+    for(const previous of previousCaches){
+      const hit=await previous.match(url);
+      if(await matchesResource(hit,record)){await cache.put(url,hit.clone());return hit;}
+    }
+  }
+  let response;
+  for(let attempt=0;attempt<attempts;attempt++){
+    const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),attempt===0?15000:30000);
+    try{
+      const target=new URL(url,self.location.href);
+      if(url==='/offline-resources.json')target.searchParams.set('qx_version',VERSION);
+      if(attempt)target.searchParams.set('qx_retry',VERSION+'-'+Date.now());
+      const fetched=await fetch(target.href,{cache:'reload',signal:controller.signal});
+      const bytes=await fetched.arrayBuffer();
+      response=new Response(bytes,{status:fetched.status,statusText:fetched.statusText,headers:fetched.headers});
+      if(!response.ok)throw new Error('HTTP '+response.status);
+      if(record&&!await matchesResource(response,record))throw new Error('资源内容与版本清单不一致');
+      break;
+    }catch(error){
+      if(attempt+1===attempts)throw new Error('precache-failed: '+url+' · '+String(error));
+    }finally{clearTimeout(timer);}
+  }
+  // 存储失败不能靠重复网络请求解决；交由本次stage回滚处理。
+  await cache.put(url,response.clone());
   return response;
 }
 
-async function precachePage(cache, pagePath) {
-  const response = await fetchInto(cache,pagePath);
-  if (!response.ok) throw new Error('precache-page-failed:' + pagePath);
-  const html = await response.clone().text();
-  // 页面 HTML 本身也要按规范键缓存，离线导航才能直接命中，而不是只缓存它引用的 JS/CSS。
-  const key = navCacheKey(new URL(pagePath, self.location.href));
-  if (!response.redirected) await cache.put(key, response);
-  else {
-    const direct = await fetch(response.url, { cache: 'reload' });
-    if (!direct.ok) throw new Error('precache-page-redirect-failed:' + pagePath);
-    await cache.put(key, direct);
-  }
-  const urls = [...new Set([...html.matchAll(/(?:src|href)="(\/_next\/[^"]+)"/g)].map((m) => m[1]))];
-  // 有限并发抓取页面引用的 chunk / CSS；不再逐个串行等待。
-  await mapLimit(urls, CONCURRENCY, (url) => fetchInto(cache, url));
-  for (const url of urls) {
-    if (!(await cache.match(url))) throw new Error('precache-asset-missing:' + url);
-  }
-}
-
 async function precacheCore(cache) {
-  await fetchInto(cache,'/offline-resources.json');
-  // 不能用 cache.addAll：它允许命中浏览器 HTTP 缓存，会把旧 shell/旧 chunk 缓存进新版本。
-  await mapLimit(CORE, CONCURRENCY, (url) => fetchInto(cache, url));
-  // 用目录地址（而不是 *.html）预缓存页面：部分静态托管会把 *.html 301 到扩展名路径。
-  await precachePage(cache, '/');
-  await precachePage(cache, '/tools/');
-  await precachePage(cache, '/translator/');
-  await precachePage(cache, '/print/');
+  const manifest=await (await fetchInto(cache,'/offline-resources.json')).json();
+  if(manifest.format!=='qingxing-offline-resources-v1'||manifest.sw!==VERSION||!Array.isArray(manifest.core)||!Array.isArray(manifest.resources))throw new Error('离线清单与当前缓存版本不一致');
+  const records=new Map(manifest.resources.map(row=>[row.path,row]));
+  const paths=[...new Set([...manifest.core,...CORE.map(value=>value.endsWith('/')?value+'index.html':value)])];
+  for(const value of paths){const row=records.get(value);if(!value.startsWith('/')||value.startsWith('//')||!row||!Number.isSafeInteger(row.size)||row.size<0||!/^[a-f0-9]{64}$/.test(row.sha256))throw new Error('无效核心资源记录: '+value);}
+  const previousCaches=await Promise.all((await caches.keys()).filter(name=>/^(?:qx-static-)?qingxing-v\d+(?:$|-repair-)/.test(name)).map(name=>caches.open(name)));
+  // 以清单的规范键缓存，每个共享JS/CSS只下载一次；Response重建消除导航重定向标记。
+  await mapLimit(paths,CONCURRENCY,value=>fetchInto(cache,value,records.get(value),previousCaches));
   // 全部离线页面和它们的 JS/CSS 都已缓存后才允许激活；失败时继续使用旧 Worker。
   const complete = await Promise.all(REQUIRED_PAGES.map((key) => cache.match(key)));
   if (complete.some((response) => !response)) throw new Error('precache-incomplete');
@@ -148,7 +163,7 @@ async function precacheCore(cache) {
 async function precacheOptional(cache) {
   await mapLimit(OPTIONAL, Math.min(CONCURRENCY, 3), async (url) => {
     try {
-      await fetchInto(cache, url);
+      await fetchInto(cache, url,null,[],1);
     } catch {
       // 大图等资源失败时忽略：首次使用时运行时会再尝试缓存。
     }
@@ -159,9 +174,15 @@ async function precacheOptional(cache) {
 const CACHE_STATE='qingxing-cache-state';
 const readyClients=new Map();
 let repairJob=null;
+let cleanupJob=null;
+let optionalJob=null;
+function cacheOptionalOnce(){
+  if(!optionalJob)optionalJob=activeCacheName().then(name=>caches.open(name)).then(precacheOptional).catch(()=>{});
+  return optionalJob;
+}
 async function activeCacheName(){
   try{const response=await (await caches.open(CACHE_STATE)).match('/active-cache');const row=response?await response.json():null;
-    if(row&&row.version===VERSION&&typeof row.active==='string'&&(row.active===VERSION||row.active.startsWith(VERSION+'-repair-'))&&await caches.has(row.active))return row.active;
+    if(row&&row.version===VERSION&&typeof row.active==='string'&&(row.active===VERSION||row.active.startsWith(VERSION+'-repair-')||row.active.startsWith(STAGE_PREFIX))&&await caches.has(row.active))return row.active;
   }catch{}
   return VERSION;
 }
@@ -191,36 +212,47 @@ async function setActiveCache(name){await (await caches.open(CACHE_STATE)).put('
 async function rebuildCore(){
   if(repairJob)return repairJob;
   repairJob=(async()=>{
-    const name=VERSION+'-repair-'+Date.now()+'-'+Math.random().toString(36).slice(2);let superseded=false;
+    // 清理与重建互斥，防止另一页面刚确认就删除仍在生成的新缓存。
+    if(cleanupJob)await cleanupJob;
+    const name=STAGE_PREFIX+Date.now()+'-'+Math.random().toString(36).slice(2);let committed=false;
     const stage=await caches.open(name);
     try{
-      await precacheCore(stage);await precacheOptional(stage);
-      if(!await cacheIsComplete(stage))throw new Error('新缓存缺少核心页面或资源');
+      await precacheCore(stage);
+      if(!await cacheIsComplete(stage)||!await caches.has(name))throw new Error('新缓存缺少核心页面或资源');
       await setActiveCache(name);
-      // 尝试把校验通过的暂存缓存提升为规范缓存名；配额不足时暂存缓存继续作为在用缓存。
-      try{
-        const target=await caches.open(VERSION);
-        await mapLimit(await stage.keys(),CONCURRENCY,async request=>{const hit=await stage.match(request);if(hit)await target.put(request,hit);});
-        if(await cacheIsComplete(target)){await setActiveCache(VERSION);superseded=true;}
-      }catch{}
+      committed=true;
+      // 保留这一份已校验的在用缓存，避免安装时再复制一整份而占满iPhone存储。
       return await activeCacheName();
     }finally{
-      // 只有当规范缓存确实可用、暂存副本已被取代时才删除它，避免每次修复都留下第二份完整缓存。
-      // 失败、或规范缓存不完整时保留暂存缓存 —— 它正是在用的那份。
-      if(superseded)await caches.delete(name).catch(()=>false);
+      // 只回收本次从未启用的失败缓存；绝不删除旧版本、旧在用stage或用户数据库。
+      if(!committed)await caches.delete(name).catch(()=>false);
     }
   })().finally(()=>{repairJob=null;});return repairJob;
 }
-async function cleanOldCaches(){
+async function performCacheCleanup(){
+  if(repairJob)return {complete:false,waiting:0,removed:[],repairing:true};
   if(!await currentCacheIsComplete())return {complete:false,waiting:0,removed:[]};
   const clients=await self.clients.matchAll({type:'window',includeUncontrolled:true});
   const waiting=clients.filter(client=>readyClients.get(client.id)!==VERSION).length;
   if(waiting)return {complete:true,waiting,removed:[]};
   const current=await activeCacheName();
   const keys=await caches.keys();
-  const removed=keys.filter(key=>key.startsWith('qingxing-')&&key!==current&&key!==CACHE_STATE);
+  // 完整性核验期间可能收到修复请求：不能把仍在写入的新stage作为旧缓存删除。
+  if(repairJob)return {complete:true,waiting:0,removed:[],repairing:true};
+  const versionNumber=Number(VERSION.match(/\d+$/)[0]);
+  const removed=keys.filter(key=>{
+    const match=/^(?:qx-static-)?qingxing-v(\d+)(?:$|-repair-)/.exec(key);
+    // 只回收本版或更早的静态缓存；未来版本可能仍在安装，未知缓存也保留。
+    return match&&Number(match[1])<=versionNumber&&key!==current;
+  });
   await Promise.all(removed.map(key=>caches.delete(key)));
   return {complete:true,waiting:0,removed};
+}
+async function cleanOldCaches(){
+  if(repairJob)return {complete:false,waiting:0,removed:[],repairing:true};
+  if(cleanupJob)return cleanupJob;
+  cleanupJob=performCacheCleanup().finally(()=>{cleanupJob=null;});
+  return cleanupJob;
 }
 self.addEventListener('install',event=>{event.waitUntil((async()=>{await rebuildCore();await self.skipWaiting();})());});
 
@@ -240,7 +272,7 @@ self.addEventListener('message',event=>{
   if(type==='SKIP_WAITING'){self.skipWaiting();return;}
   if(type==='CACHE_READY'){
     if(event.data.version===VERSION&&event.source?.id)readyClients.set(event.source.id,VERSION);
-    event.waitUntil((async()=>{try{const result=await cleanOldCaches();event.ports?.[0]?.postMessage({ok:true,version:VERSION,...result});}catch(error){event.ports?.[0]?.postMessage({ok:false,error:String(error)});}})());return;
+    event.waitUntil((async()=>{try{const result=await cleanOldCaches();event.ports?.[0]?.postMessage({ok:true,version:VERSION,...result});}catch(error){event.ports?.[0]?.postMessage({ok:false,error:String(error)});}await cacheOptionalOnce();})());return;
   }
   if(type==='REPAIR_CACHE'||type==='VERIFY_CACHE'){
     event.waitUntil((async()=>{
