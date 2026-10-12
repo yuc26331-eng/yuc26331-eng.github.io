@@ -23,10 +23,21 @@
     "id": "tokyo",
     "source": "https://www.tokyometro.jp/en/subwaymap/index.html",
     "official_file": "https://www.tokyometro.jp/station/pdf/202305/202305_number_en.pdf",
-    "official_version": "2023-05",
+    "official_version": "2023-05 official download directory; map footer ©2023.03",
     "verified_on": "2026-10-12",
     "pdf_bytes": 1090146,
     "sha256": "d53e8b96a89192a22b9c378e63c330455dd3eefed2f6a5e99970b11317f9ca60",
+    "preview": "3200px maximum edge, WebP quality 92 rendered from the unmodified PDF; original copyright retained"
+  },
+  {
+    "id": "tokyo-zh",
+    "language": "zh-Hans",
+    "source": "https://www.tokyometro.jp/cn/subwaymap/index.html",
+    "official_file": "https://www.tokyometro.jp/station/pdf/202305/202305_number_cn.pdf",
+    "official_version": "2023-05 official download directory; map footer ©2023.03",
+    "verified_on": "2026-10-12",
+    "pdf_bytes": 1391675,
+    "sha256": "b2796d58b88d15f90ce8c5b7e529f5e4756f502aac6dfedbba87b8724602a7ac",
     "preview": "3200px maximum edge, WebP quality 92 rendered from the unmodified PDF; original copyright retained"
   }
 ]

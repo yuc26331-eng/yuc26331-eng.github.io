@@ -1,1 +1,1 @@
-{"version":"1.4.32","build":"94ab044","sw":"qingxing-v74","updateTime":"2026-10-12T14:09:04.071Z","changelog":"- 补全官方领保与游客热线，新增大阪、京都、东京可下载离线交通线路图。"}
+{"version":"1.4.33","build":"3c96696","sw":"qingxing-v75","updateTime":"2026-10-12T22:33:42.208Z","changelog":"- 东京线路图新增官方简体中文并保留英文切换，原 PDF 与预览可下载和离线读取。"}
