@@ -1,0 +1,32 @@
+[
+  {
+    "id": "osaka",
+    "source": "https://subway.osakametro.co.jp/guide/routemap.php",
+    "official_file": "https://subway.osakametro.co.jp/img/osakametro_rosenzu_20250404.pdf",
+    "official_version": "2025-04-04",
+    "verified_on": "2026-10-12",
+    "pdf_bytes": 1101136,
+    "sha256": "bce385d5298d78ba8ea18571d2b8c03c2fc8b99f62906baac6bbc39007031a10",
+    "preview": "3200px maximum edge, WebP quality 92 rendered from the unmodified PDF; original copyright retained"
+  },
+  {
+    "id": "kyoto",
+    "source": "https://www.city.kyoto.lg.jp/kotsu/page/0000008995.html",
+    "official_file": "https://www.city.kyoto.lg.jp/kotsu/cmsfiles/contents/0000008/8995/kantai_240529.pdf",
+    "official_version": "2024-05-29",
+    "verified_on": "2026-10-12",
+    "pdf_bytes": 7992387,
+    "sha256": "6a3552234e7da3fb2768b3f489711c17835c57b669949fa8e03b4fa220306f06",
+    "preview": "3200px maximum edge, WebP quality 92 rendered from the unmodified PDF; original copyright retained"
+  },
+  {
+    "id": "tokyo",
+    "source": "https://www.tokyometro.jp/en/subwaymap/index.html",
+    "official_file": "https://www.tokyometro.jp/station/pdf/202305/202305_number_en.pdf",
+    "official_version": "2023-05",
+    "verified_on": "2026-10-12",
+    "pdf_bytes": 1090146,
+    "sha256": "d53e8b96a89192a22b9c378e63c330455dd3eefed2f6a5e99970b11317f9ca60",
+    "preview": "3200px maximum edge, WebP quality 92 rendered from the unmodified PDF; original copyright retained"
+  }
+]
