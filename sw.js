@@ -8,7 +8,7 @@
 // 3. 旧版本静态缓存不在 activate 阶段删除，而是等新版本页面确认自己启动成功后再安全清理，
 //    杜绝“前端提示更新失败、后台却已激活并删掉旧缓存”的半新半旧状态（白屏根因）。
 // 4. 这里只操作 Cache Storage 中的静态资源缓存，绝不触碰 IndexedDB / localStorage 用户数据。
-const VERSION = 'qingxing-v75';
+const VERSION = 'qingxing-v76';
 // 旧版Worker只清理qingxing-*：隔离正在安装的缓存，防止旧页面确认时误删它。
 const STAGE_PREFIX = 'qx-static-'+VERSION+'-repair-';
 
@@ -22,6 +22,8 @@ const CORE = [
   '/translator/index.html',
   '/print/',
   '/print/index.html',
+  '/help/',
+  '/help/index.html',
   '/compat.js',
   '/offline.html',
   '/manifest.webmanifest',
@@ -41,7 +43,7 @@ const OPTIONAL = [
 ];
 
 // 必须在安装结束时已完整缓存、否则不允许激活的页面。
-const REQUIRED_PAGES = ['/index.html', '/tools/index.html', '/translator/index.html', '/print/index.html'];
+const REQUIRED_PAGES = ['/index.html', '/tools/index.html', '/translator/index.html', '/print/index.html', '/help/index.html'];
 // 并发上限：既缩短安装时间，又避免 iOS Safari 上一次性发起过多请求。
 const CONCURRENCY = 6;
 
