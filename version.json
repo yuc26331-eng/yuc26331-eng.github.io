@@ -1,1 +1,1 @@
-{"version":"1.4.35","build":"2105ee3","sw":"qingxing-v77","updateTime":"2026-10-15T17:52:27.008Z","changelog":"- 首页移除大型随身入口，恢复原有内容顺序与布局。"}
+{"version":"1.5.0","build":"shared-20261017-v1","sw":"qingxing-v79","updateTime":"2026-10-16T18:08:14.077Z","changelog":"- 统一服务器解锁、可撤销会话、限流，以及共享数据和附件权限检查。"}
