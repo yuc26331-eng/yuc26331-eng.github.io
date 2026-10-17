@@ -1,1 +1,1 @@
-{"version":"1.6.2","build":"public-20261017-v3","sw":"qingxing-v84","updateTime":"2026-10-17T04:13:26.977Z","changelog":"- 允许 iOS Capacitor 与 Android WebView 的本机来源访问公开共享 API，同时继续拒绝未列入的网页来源。"}
+{"version":"1.6.3","build":"public-20261017-v4","sw":"qingxing-v85","updateTime":"2026-10-17T13:51:10.219Z","changelog":"- 新增工具箱「一键下载到本机」：完整保存并校验静态资源、当前共享行程/订单/钱包/资料/行李/足迹数据及可访问附件，显示进度、失败清单、重试与最后完整下载时间。"}
