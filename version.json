@@ -1,1 +1,1 @@
-{"version":"1.6.1","build":"public-20261017-v2","sw":"qingxing-v83","updateTime":"2026-10-17T04:00:42.059Z","changelog":"- 重新构建前清理旧静态输出，避免已取消的登录与解锁代码残留在公开但未引用的资源中。"}
+{"version":"1.6.2","build":"public-20261017-v3","sw":"qingxing-v84","updateTime":"2026-10-17T04:13:26.977Z","changelog":"- 允许 iOS Capacitor 与 Android WebView 的本机来源访问公开共享 API，同时继续拒绝未列入的网页来源。"}
