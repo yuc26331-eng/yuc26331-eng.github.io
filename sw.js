@@ -1,4 +1,5 @@
-// 轻行离线缓存：预缓存应用外壳与全部静态资源，私人数据不进入缓存（数据保存在本机存储中）。
+// 轻行离线缓存：只预缓存应用外壳与静态资源。共享 API 数据不进入 Cache Storage；
+// 已下载的业务数据与离线待同步记录保存在独立 IndexedDB 镜像中。
 // 每次发布必须递增这里的版本号：脚本字节变化才会触发浏览器安装新 Worker 并重新预缓存。
 // 否则新构建即使已经上线，已经装过旧 Worker 的设备仍会一直命中旧 index.html 与旧 chunk。
 //
@@ -8,7 +9,7 @@
 // 3. 旧版本静态缓存不在 activate 阶段删除，而是等新版本页面确认自己启动成功后再安全清理，
 //    杜绝“前端提示更新失败、后台却已激活并删掉旧缓存”的半新半旧状态（白屏根因）。
 // 4. 这里只操作 Cache Storage 中的静态资源缓存，绝不触碰 IndexedDB / localStorage 用户数据。
-const VERSION = 'qingxing-v79';
+const VERSION = 'qingxing-v82';
 // 旧版Worker只清理qingxing-*：隔离正在安装的缓存，防止旧页面确认时误删它。
 const STAGE_PREFIX = 'qx-static-'+VERSION+'-repair-';
 
@@ -294,7 +295,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/')) return; // Protected data must never enter Cache Storage.
+  if (url.pathname.startsWith('/api/')) return; // Shared API responses stay out of Cache Storage; offline data uses the local mirror.
   if (url.pathname === '/version.json' || url.pathname === '/offline-resources.json') return; // 更新检查必须走网络
 
   if (request.mode === 'navigate') {

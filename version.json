@@ -1,1 +1,1 @@
-{"version":"1.5.0","build":"shared-20261017-v1","sw":"qingxing-v79","updateTime":"2026-10-16T18:08:14.077Z","changelog":"- 统一服务器解锁、可撤销会话、限流，以及共享数据和附件权限检查。"}
+{"version":"1.6.0","build":"public-20261017-v1","sw":"qingxing-v82","updateTime":"2026-10-17T03:47:47.433Z","changelog":"- 轻行改为公开共享空间，打开正式网址即可查看和编辑统一云端资料。"}
