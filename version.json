@@ -1,1 +1,1 @@
-{"version":"1.6.0","build":"public-20261017-v1","sw":"qingxing-v82","updateTime":"2026-10-17T03:47:47.433Z","changelog":"- 轻行改为公开共享空间，打开正式网址即可查看和编辑统一云端资料。"}
+{"version":"1.6.1","build":"public-20261017-v2","sw":"qingxing-v83","updateTime":"2026-10-17T04:00:42.059Z","changelog":"- 重新构建前清理旧静态输出，避免已取消的登录与解锁代码残留在公开但未引用的资源中。"}
