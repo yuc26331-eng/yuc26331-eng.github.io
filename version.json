@@ -1,1 +1,1 @@
-{"version":"1.6.5","build":"desktop-startup-20261018","sw":"qingxing-v87","updateTime":"2026-10-18T04:44:25.474Z","changelog":"- 仅修复旧设备启动回档超过请求大小限制导致无法打开；按 UTF-8 字节数分批，并复用已存在的回档记录。"}
+{"version":"1.6.5","build":"desktop-startup-20261018-r2","sw":"qingxing-v88","updateTime":"2026-10-18T04:44:25.474Z","changelog":"- 仅修复旧设备启动回档超过请求大小限制导致无法打开；按 UTF-8 字节数分批，并复用已存在的回档记录。"}
