@@ -1,1 +1,1 @@
-{"version":"1.6.4","build":"public-20261017-v5","sw":"qingxing-v86","updateTime":"2026-10-17T15:54:34.922Z","changelog":"- 离线模式补强：检查更新、修复网页缓存、Service Worker 启动注册、离线资源下载与安装包下载在离线模式下直接拒绝，不再发起网络请求或 Worker 更新探测。"}
+{"version":"1.6.5","build":"desktop-startup-20261018","sw":"qingxing-v87","updateTime":"2026-10-18T04:44:25.474Z","changelog":"- 仅修复旧设备启动回档超过请求大小限制导致无法打开；按 UTF-8 字节数分批，并复用已存在的回档记录。"}

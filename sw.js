@@ -9,7 +9,7 @@
 // 3. 旧版本静态缓存不在 activate 阶段删除，而是等新版本页面确认自己启动成功后再安全清理，
 //    杜绝“前端提示更新失败、后台却已激活并删掉旧缓存”的半新半旧状态（白屏根因）。
 // 4. 这里只操作 Cache Storage 中的静态资源缓存，绝不触碰 IndexedDB / localStorage 用户数据。
-const VERSION = 'qingxing-v86';
+const VERSION = 'qingxing-v87';
 // 旧版Worker只清理qingxing-*：隔离正在安装的缓存，防止旧页面确认时误删它。
 const STAGE_PREFIX = 'qx-static-'+VERSION+'-repair-';
 
