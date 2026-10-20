@@ -1,1 +1,1 @@
-{"version":"1.6.5","build":"desktop-startup-20261018-r2","sw":"qingxing-v88","updateTime":"2026-10-18T04:44:25.474Z","changelog":"- 仅修复旧设备启动回档超过请求大小限制导致无法打开；按 UTF-8 字节数分批，并复用已存在的回档记录。"}
+{"version":"1.6.7","build":"qa-round2-20261020-v167","sw":"qingxing-v89","updateTime":"2026-10-20T03:39:36.000Z","changelog":"- 句子离线删除与重启保留待同步队列，限制输入长度并按纯文本显示；常驻公开空间隐私提示。"}
