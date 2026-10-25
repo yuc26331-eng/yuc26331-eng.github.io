@@ -1,0 +1,14 @@
+{
+  "version": "2.0.1",
+  "build": 44,
+  "date": "2026-10-25",
+  "changelog": [
+    "Update Site source"
+  ],
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v2.0.1.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v2.0.1-b44/Qingxing-v2.0.1.ipa",
+  "size": 35528816,
+  "fileSize": 35528816,
+  "releaseDate": "2026-10-25",
+  "sha256": "c9e78dbc192c088d1bcaa9eb55c8721cbf3da8493370bee4ba103e4b1d7c95bf"
+}
