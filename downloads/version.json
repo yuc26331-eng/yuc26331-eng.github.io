@@ -1,14 +1,14 @@
 {
-  "version": "2.0.1",
-  "build": 45,
-  "date": "2026-10-25",
+  "version": "2.0.2",
+  "build": 46,
+  "date": "2026-10-26",
   "changelog": [
-    "Record verified production itinerary recovery and Sites v39 release"
+    "Merge pull request #13 from yuc26331-eng/fix/itinerary-sync-integrity-20261026"
   ],
-  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v2.0.1.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v2.0.1-b45/Qingxing-v2.0.1.ipa",
-  "size": 35528917,
-  "fileSize": 35528917,
-  "releaseDate": "2026-10-25",
-  "sha256": "cc48a12036d3b18e3ab6036125b9ecc0102a05ee4ae0e5feb92082dc527ac384"
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v2.0.2.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v2.0.2-b46/Qingxing-v2.0.2.ipa",
+  "size": 35523874,
+  "fileSize": 35523874,
+  "releaseDate": "2026-10-26",
+  "sha256": "3f0f2baccc6753515b6b63454c3d183b6a4a2c2d8f65d9589fdd05027598250b"
 }
