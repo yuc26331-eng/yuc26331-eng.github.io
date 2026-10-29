@@ -1,14 +1,14 @@
 {
-  "version": "2.0.5",
-  "build": 49,
+  "version": "2.0.6",
+  "build": 50,
   "date": "2026-10-29",
   "changelog": [
-    "Merge verified Safari installation recovery for 2.0.5"
+    "Merge pull request #17 from yuc26331-eng/fix/safe-sw-update-20261029"
   ],
-  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v2.0.5.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v2.0.5-b49/Qingxing-v2.0.5.ipa",
-  "size": 35545319,
-  "fileSize": 35545319,
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v2.0.6.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v2.0.6-b50/Qingxing-v2.0.6.ipa",
+  "size": 35546871,
+  "fileSize": 35546871,
   "releaseDate": "2026-10-29",
-  "sha256": "371ff59b1095a480dded67eb61a624fd521c8221f7e4fc2ad719988808cb8d48"
+  "sha256": "a2c5eb119faabdc4b2b854c772ebff1c99a2be47fe87efc958d10b8e9d8b8d19"
 }
