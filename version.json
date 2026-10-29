@@ -1,1 +1,1 @@
-{"version":"1.6.9","build":"pages-safe-update-20261029-v169","sw":"qingxing-v109","updateTime":"2026-10-29T12:40:00.000Z","changelog":"- 移植安全更新、完整缓存核验、等待程序激活、实际资源进度及诊断。保留旧站业务代码、数据存储与同步连接，不迁移为 Sites 私人空间。"}
+{"commit":"c4fc9da18e8d144dc607880209218e2138ea9c7d","version":"1.6.10","build":"c4fc9da","sw":"qingxing-v110","updateTime":"2026-10-29T14:09:41.387Z","changelog":"- Safari/PWA 启动、前台恢复与联网时检查更新并提示；用户确认后校验完整资源再切换。"}

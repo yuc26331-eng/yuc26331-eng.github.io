@@ -9,7 +9,7 @@
 // 3. 旧版本静态缓存不在 activate 阶段删除，而是等新版本页面确认自己启动成功后再安全清理，
 //    杜绝“前端提示更新失败、后台却已激活并删掉旧缓存”的半新半旧状态（白屏根因）。
 // 4. 这里只操作 Cache Storage 中的静态资源缓存，绝不触碰 IndexedDB / localStorage 用户数据。
-const VERSION = 'qingxing-v109';
+const VERSION = 'qingxing-v110';
 // 旧版Worker只清理qingxing-*：隔离正在安装的缓存，防止旧页面确认时误删它。
 const STAGE_PREFIX = 'qx-static-'+VERSION+'-repair-';
 
@@ -315,7 +315,7 @@ async function cleanOldCaches(){
   cleanupJob=performCacheCleanup().finally(()=>{cleanupJob=null;});
   return cleanupJob;
 }
-self.addEventListener('install',event=>{event.waitUntil((async()=>{try{await rebuildCore(true);await self.skipWaiting();}catch(error){await reportInstallFailure(error);throw error;}})());});
+self.addEventListener('install',event=>{event.waitUntil((async()=>{try{await rebuildCore(true);if(!self.registration.active)await self.skipWaiting();}catch(error){await reportInstallFailure(error);throw error;}})());});
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -361,7 +361,20 @@ self.addEventListener('fetch', (event) => {
 
   if (request.mode === 'navigate') {
     event.respondWith(
-      (async()=>{const cache=await caches.open(await activeCacheName());const core=REQUIRED_PAGES.includes(navCacheKey(url))?await cache.match(navCacheKey(url)):null;if(core)return core;return fetch(request);})()
+      (async()=>{
+        const cache=await caches.open(await activeCacheName()), key=navCacheKey(url);
+        const core=REQUIRED_PAGES.includes(key)?await cache.match(key):null;
+        const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),4000);
+        try {
+          // Network first, but never mix a new document with an old release's chunks.
+          const response=await fetch(new Request(request,{cache:'no-store',signal:controller.signal}));
+          if(!core)return response;
+          const manifest=await (await cache.match('/offline-resources.json')).json();
+          const record=manifest.resources.find(row=>row.path===key);
+          if(record&&await matchesResource(response,record))return response;
+        } catch {} finally {clearTimeout(timer);}
+        return core||fetch(request);
+      })()
         .then((response) => {
           // 按真实路径缓存导航响应：不能把翻译页写进 /index.html，
           // 否则离线时任何未缓存页面都会拿到另一个功能页面。
