@@ -9,7 +9,7 @@
 // 3. 旧版本静态缓存不在 activate 阶段删除，而是等新版本页面确认自己启动成功后再安全清理，
 //    杜绝“前端提示更新失败、后台却已激活并删掉旧缓存”的半新半旧状态（白屏根因）。
 // 4. 这里只操作 Cache Storage 中的静态资源缓存，绝不触碰 IndexedDB / localStorage 用户数据。
-const VERSION = 'qingxing-v89';
+const VERSION = 'qingxing-v109';
 // 旧版Worker只清理qingxing-*：隔离正在安装的缓存，防止旧页面确认时误删它。
 const STAGE_PREFIX = 'qx-static-'+VERSION+'-repair-';
 
@@ -26,6 +26,7 @@ const CORE = [
   '/help/',
   '/help/index.html',
   '/compat.js',
+  '/interface.js',
   '/offline.html',
   '/manifest.webmanifest',
   '/favicon.svg',
@@ -46,7 +47,7 @@ const OPTIONAL = [
 // 必须在安装结束时已完整缓存、否则不允许激活的页面。
 const REQUIRED_PAGES = ['/index.html', '/tools/index.html', '/translator/index.html', '/print/index.html', '/help/index.html'];
 // 并发上限：既缩短安装时间，又避免 iOS Safari 上一次性发起过多请求。
-const CONCURRENCY = 6;
+const CONCURRENCY = 2;
 
 // 有上限的并发执行，保持输入顺序。
 async function mapLimit(items, limit, worker) {
@@ -115,35 +116,79 @@ async function matchesResource(response, record) {
     return hash===record.sha256;
   }catch{return false;}
 }
+// Public resource metadata only: no travel records, credentials or attachment contents.
+const DIAGNOSTICS_CACHE = 'qx-update-diagnostics';
+function resourceError(cause, detail) {
+  const error = new Error('precache-failed: '+detail.path+' · '+detail.phase+' · '+String(cause));
+  error.detail = {...detail, errorType:cause?.name||'Error', underlying:String(cause)};
+  return error;
+}
+function decodedResponse(bytes,response){
+  // Fetch has already decoded gzip/br. Transport headers describe the wire body,
+  // not these bytes, and must not be persisted on a reconstructed response.
+  const headers=new Headers(response.headers);
+  for(const name of ['content-encoding','content-length','transfer-encoding','set-cookie'])headers.delete(name);
+  return new Response(bytes,{status:response.status,statusText:response.statusText,headers});
+}
+async function reportInstallFailure(error) {
+  const diagnostic = {version:VERSION, time:new Date().toISOString(), phase:'install', errorType:error?.name||'Error', underlying:String(error), ...error.detail, message:String(error)};
+  const controller=new AbortController(),timer=setTimeout(()=>controller.abort(),3000);
+  try{await fetch(new URL('/api/update-diagnostic',self.location.href),{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(diagnostic),credentials:'same-origin',signal:controller.signal});}catch{}finally{clearTimeout(timer);}
+  // A full/disabled Cache Storage must not hide the original exception.
+  try { await (await caches.open(DIAGNOSTICS_CACHE)).put('/last-failure', new Response(JSON.stringify(diagnostic), {headers:{'Content-Type':'application/json'}})); } catch {}
+  try { for (const client of await self.clients.matchAll({type:'window',includeUncontrolled:true})) client.postMessage?.({type:'QX_UPDATE_FAILURE',diagnostic}); } catch {}
+  console.error('QX_UPDATE_FAILURE', JSON.stringify(diagnostic));
+}
 async function fetchInto(cache, url, record=null, previousCaches=[], attempts=2) {
-  // 旧静态文件仅在与新版清单完全一致时复用；旧HTML或损坏资源不能冒充新版。
+  // An unreadable old cache is not proof that the published resource is bad.
+  // Ignore failed reads and verify a fresh download instead of aborting install.
   if(record){
-    const own=await cache.match(url);
-    if(await matchesResource(own,record))return own;
-    for(const previous of previousCaches){
-      const hit=await previous.match(url);
-      if(await matchesResource(hit,record)){await cache.put(url,hit.clone());return hit;}
+    for(const previous of [cache,...previousCaches]){
+      let hit;
+      try { hit=await previous.match(url); } catch { continue; }
+      if(await matchesResource(hit,record)){
+        let normalized;try{normalized=decodedResponse(await hit.arrayBuffer(),hit);}catch{continue;}
+        if(previous!==cache){try{await cache.put(url,normalized.clone());}catch(error){throw resourceError(error,{path:url,url:new URL(url,self.location.href).href,phase:'cache-write-reused'});}}
+        return normalized;
+      }
     }
   }
-  let response;
+  let response,detail;
   for(let attempt=0;attempt<attempts;attempt++){
     const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),attempt===0?15000:30000);
+    const target=new URL(url==='/offline-resources.json'?'/api/update-manifest':record?'/api/update-resource':url,self.location.href);
+    if(url==='/offline-resources.json'||record)target.searchParams.set('sw',VERSION);
+    if(record){target.searchParams.set('path',url);target.searchParams.set('sha256',record.sha256);}
+    if(attempt)target.searchParams.set('qx_retry',VERSION+'-'+Date.now());
+    detail={path:url,url:target.href,phase:'download',attempt:attempt+1};
     try{
-      const target=new URL(url,self.location.href);
-      if(url==='/offline-resources.json')target.searchParams.set('qx_version',VERSION);
-      if(attempt)target.searchParams.set('qx_retry',VERSION+'-'+Date.now());
-      const fetched=await fetch(target.href,{cache:'reload',signal:controller.signal});
+      let fetched=await fetch(target.href,{cache:'reload',signal:controller.signal});
+      // Static hosts have no /api routes. Preserve the exact same manifest/SHA checks.
+      if ([404,405,501].includes(fetched.status) && target.pathname.startsWith('/api/update-')) {
+        const direct=new URL(url,self.location.href);direct.searchParams.set('qx_release',VERSION);
+        fetched=await fetch(direct.href,{cache:'reload',signal:controller.signal});
+      }
+      Object.assign(detail,{status:fetched.status,finalUrl:fetched.url||target.href,redirected:fetched.redirected,contentType:fetched.headers.get('content-type'),responseType:fetched.type});
+      if(!fetched.ok)throw new Error('HTTP '+fetched.status);
+      if(fetched.url&&new URL(fetched.url).origin!==self.location.origin)throw new Error('Cross-origin redirect refused');
+      detail.phase='read-body';
       const bytes=await fetched.arrayBuffer();
-      response=new Response(bytes,{status:fetched.status,statusText:fetched.statusText,headers:fetched.headers});
-      if(!response.ok)throw new Error('HTTP '+response.status);
-      if(record&&!await matchesResource(response,record))throw new Error('资源内容与版本清单不一致');
+      detail.actualSize=bytes.byteLength;
+      response=decodedResponse(bytes,fetched);
+      if(record){
+        detail.phase='verify-size';detail.expectedSize=record.size;
+        if(bytes.byteLength!==record.size)throw new Error('Size mismatch: expected '+record.size+', received '+bytes.byteLength);
+        detail.phase='verify-sha256';detail.expectedHash=record.sha256;
+        detail.actualHash=Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256',bytes)),value=>value.toString(16).padStart(2,'0')).join('');
+        if(detail.actualHash!==record.sha256)throw new Error('SHA-256 mismatch');
+      }
       break;
     }catch(error){
-      if(attempt+1===attempts)throw new Error('precache-failed: '+url+' · '+String(error));
+      if(attempt+1===attempts)throw resourceError(error,detail);
     }finally{clearTimeout(timer);}
   }
-  // 存储失败不能靠重复网络请求解决；交由本次stage回滚处理。
-  await cache.put(url,response.clone());
+  detail.phase='cache-write';
+  try{await cache.put(url,response.clone());}catch(error){throw resourceError(error,detail);}
   return response;
 }
 
@@ -153,9 +198,14 @@ async function precacheCore(cache) {
   const records=new Map(manifest.resources.map(row=>[row.path,row]));
   const paths=[...new Set([...manifest.core,...CORE.map(value=>value.endsWith('/')?value+'index.html':value)])];
   for(const value of paths){const row=records.get(value);if(!value.startsWith('/')||value.startsWith('//')||!row||!Number.isSafeInteger(row.size)||row.size<0||!/^[a-f0-9]{64}$/.test(row.sha256))throw new Error('无效核心资源记录: '+value);}
-  const previousCaches=await Promise.all((await caches.keys()).filter(name=>/^(?:qx-static-)?qingxing-v\d+(?:$|-repair-)/.test(name)).map(name=>caches.open(name)));
+  const previousResults=await Promise.allSettled((await caches.keys()).filter(name=>/^(?:qx-static-)?qingxing-v\d+(?:$|-repair-)/.test(name)).map(name=>caches.open(name)));
+  const previousCaches=previousResults.filter(result=>result.status==='fulfilled').map(result=>result.value);
   // 以清单的规范键缓存，每个共享JS/CSS只下载一次；Response重建消除导航重定向标记。
-  await mapLimit(paths,CONCURRENCY,value=>fetchInto(cache,value,records.get(value),previousCaches));
+  let done=0;
+  await mapLimit(paths,CONCURRENCY,async value=>{
+    await fetchInto(cache,value,records.get(value),previousCaches);done++;
+    try{for(const client of await self.clients.matchAll({type:'window',includeUncontrolled:true}))client.postMessage?.({type:'QX_UPDATE_PROGRESS',version:VERSION,done,total:paths.length,path:value});}catch{}
+  });
   // 全部离线页面和它们的 JS/CSS 都已缓存后才允许激活；失败时继续使用旧 Worker。
   const complete = await Promise.all(REQUIRED_PAGES.map((key) => cache.match(key)));
   if (complete.some((response) => !response)) throw new Error('precache-incomplete');
@@ -212,13 +262,21 @@ async function currentCacheIsComplete(){
   try{const name=await activeCacheName();return await caches.has(name)&&await cacheIsComplete(await caches.open(name));}catch{return false;}
 }
 async function setActiveCache(name){await (await caches.open(CACHE_STATE)).put('/active-cache',new Response(JSON.stringify({version:VERSION,active:name}),{headers:{'Content-Type':'application/json'}}));}
-async function rebuildCore(){
+async function rebuildCore(reuseVerified=false){
   if(repairJob)return repairJob;
   repairJob=(async()=>{
     // 清理与重建互斥，防止另一页面刚确认就删除仍在生成的新缓存。
     if(cleanupJob)await cleanupJob;
+    // Old pages register /sw.js?v=90 at startup even after this release is live.
+    // Registering the same release later under ?v=102 must not allocate it again.
+    if(reuseVerified&&await currentCacheIsComplete())return await activeCacheName();
+    // A foreground updater may already have downloaded and verified this release.
+    // Adopt it in place, avoiding a second core copy on storage-limited iPhones.
+    for(const candidate of (await caches.keys()).filter(key=>key.startsWith(STAGE_PREFIX+'window-'))){
+      try{if(await cacheIsComplete(await caches.open(candidate))){await setActiveCache(candidate);return candidate;}}catch{}
+    }
     const name=STAGE_PREFIX+Date.now()+'-'+Math.random().toString(36).slice(2);let committed=false;
-    const stage=await caches.open(name);
+    let stage;try{stage=await caches.open(name);}catch(error){throw resourceError(error,{path:name,phase:'cache-open'});}
     try{
       await precacheCore(stage);
       if(!await cacheIsComplete(stage)||!await caches.has(name))throw new Error('新缓存缺少核心页面或资源');
@@ -257,7 +315,7 @@ async function cleanOldCaches(){
   cleanupJob=performCacheCleanup().finally(()=>{cleanupJob=null;});
   return cleanupJob;
 }
-self.addEventListener('install',event=>{event.waitUntil((async()=>{await rebuildCore();await self.skipWaiting();})());});
+self.addEventListener('install',event=>{event.waitUntil((async()=>{try{await rebuildCore(true);await self.skipWaiting();}catch(error){await reportInstallFailure(error);throw error;}})());});
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
@@ -272,7 +330,10 @@ self.addEventListener('activate', (event) => {
 
 self.addEventListener('message',event=>{
   const type=event.data&&event.data.type;
-  if(type==='SKIP_WAITING'){self.skipWaiting();return;}
+  if(type==='SKIP_WAITING'){
+    // Only a fully verified release can take over; old pages may send no version.
+    event.waitUntil((async()=>{if((!event.data.version||event.data.version===VERSION)&&await currentCacheIsComplete())await self.skipWaiting();})());return;
+  }
   if(type==='CACHE_READY'){
     if(event.data.version===VERSION&&event.source?.id)readyClients.set(event.source.id,VERSION);
     event.waitUntil((async()=>{try{const result=await cleanOldCaches();event.ports?.[0]?.postMessage({ok:true,version:VERSION,...result});}catch(error){event.ports?.[0]?.postMessage({ok:false,error:String(error)});}await cacheOptionalOnce();})());return;
@@ -280,7 +341,7 @@ self.addEventListener('message',event=>{
   if(type==='REPAIR_CACHE'||type==='VERIFY_CACHE'){
     event.waitUntil((async()=>{
       try{const name=type==='REPAIR_CACHE'?await rebuildCore():await activeCacheName();const ok=await cacheIsComplete(await caches.open(name));event.ports?.[0]?.postMessage({ok,version:VERSION,cacheName:name});}
-      catch(error){event.ports?.[0]?.postMessage({ok:false,version:VERSION,error:String(error)});}
+      catch(error){event.ports?.[0]?.postMessage({ok:false,version:VERSION,error:String(error),diagnostic:error.detail});}
     })());
   }
 });
@@ -295,8 +356,8 @@ self.addEventListener('fetch', (event) => {
     return;
   }
   if (url.origin !== self.location.origin) return;
-  if (url.pathname.startsWith('/api/')) return; // Shared API responses stay out of Cache Storage; offline data uses the local mirror.
-  if (url.pathname === '/version.json' || url.pathname === '/offline-resources.json') return; // 更新检查必须走网络
+  if (url.pathname.startsWith('/api/') || url.pathname.startsWith('/signin-') || url.pathname.startsWith('/signout-') || url.pathname === '/callback' || request.headers.has('authorization')) return;
+  if (url.pathname === '/version.json' || url.pathname === '/offline-resources.json' || url.pathname === '/update-recovery.html' || url.pathname === '/upgrade-v2.html' || url.pathname === '/update-recovery.js') return; // 更新检查必须走网络
 
   if (request.mode === 'navigate') {
     event.respondWith(
@@ -326,10 +387,13 @@ self.addEventListener('fetch', (event) => {
   }
 
   event.respondWith(
-    activeCacheName().then(name=>caches.open(name)).then(cache=>cache.match(request)).then(async (current)=>{const cached=current||await caches.match(request);
-      if (cached && request.cache!=='reload' && request.cache!=='no-store') return cached;
+    activeCacheName().then(name=>caches.open(name)).then(cache=>cache.match(request)).then(async (current)=>{const cached=current||(url.pathname.startsWith('/_next/static/')?await caches.match(request):undefined);
+      // Hashed chunks are immutable. A reload of an old HTML page must still
+      // use its cached chunk after a release removes that URL from the origin.
+      if (cached && (url.pathname.startsWith('/_next/static/') || request.cache!=='reload' && request.cache!=='no-store')) return cached;
       return fetch(request)
         .then((response) => {
+          if (!response.ok && cached) return cached;
           // PDF.js loads .mjs workers, .bcmap CMaps and .pfb fonts; Tesseract loads .gz language data.
           // Cache these same-origin resources only after first use, keeping the initial install small.
           if (response && response.ok && (url.pathname.startsWith('/_next/') || /\.(?:js|mjs|css|png|jpe?g|svg|webp|gif|ico|woff2?|ttf|gz|bcmap|pfb|wasm)$/i.test(url.pathname))) {
