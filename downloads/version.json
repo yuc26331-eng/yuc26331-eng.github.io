@@ -1,14 +1,14 @@
 {
-  "version": "2.0.4",
-  "build": 48,
+  "version": "2.0.5",
+  "build": 49,
   "date": "2026-10-29",
   "changelog": [
-    "Merge verified source-bound expense repair for 2.0.4"
+    "Merge verified Safari installation recovery for 2.0.5"
   ],
-  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v2.0.4.ipa",
-  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v2.0.4-b48/Qingxing-v2.0.4.ipa",
-  "size": 35544745,
-  "fileSize": 35544745,
+  "ipaUrl": "https://yuc26331-eng.github.io/downloads/Qingxing-v2.0.5.ipa",
+  "ipaUrlFallback": "https://github.com/yuc26331-eng/qingxing-downloads/releases/download/v2.0.5-b49/Qingxing-v2.0.5.ipa",
+  "size": 35545319,
+  "fileSize": 35545319,
   "releaseDate": "2026-10-29",
-  "sha256": "ea9f5dcd3d4b3527faca211d9a237b68e03a0abbd5ae1327907419e83df939f5"
+  "sha256": "371ff59b1095a480dded67eb61a624fd521c8221f7e4fc2ad719988808cb8d48"
 }
